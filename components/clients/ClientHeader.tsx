@@ -1,0 +1,69 @@
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { MapPin, Plus } from 'lucide-react-native';
+import { useTheme } from '@/hooks/useTheme';
+
+interface ClientHeaderProps {
+  onOpenMap: () => void;
+  onOpenForm: () => void;
+}
+
+export function ClientHeader({ onOpenMap, onOpenForm }: ClientHeaderProps) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.header}>
+      <Text style={[styles.title, { color: colors.text }]}>Clients</Text>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={[styles.iconButton, { backgroundColor: colors.surface }]}
+          onPress={onOpenMap}
+        >
+          <MapPin size={20} color={colors.text} strokeWidth={2} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          onPress={onOpenForm}
+        >
+          <Plus size={20} color="#FFFFFF" strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  title: { fontSize: 28, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', gap: 12 },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+});
