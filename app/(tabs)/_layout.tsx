@@ -12,20 +12,16 @@ import {
   NotepadTextDashed,
   Calendar,
 } from 'lucide-react-native';
-import {
-  useColorScheme,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { Animated, Easing } from 'react-native';
 import { User as UserIcon } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function TabLayout() {
   const { session, loading } = useAuth();
-  const colorScheme = useColorScheme();
+  const { colors, isDark } = useTheme();
   const [showMore, setShowMore] = useState(false);
   const sidebarWidth = 280;
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
@@ -59,19 +55,23 @@ export default function TabLayout() {
   }
 
   const tabBarStyle = {
-    backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#FFFFFF',
-    borderTopColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+    backgroundColor: colors.surface,
+    borderTopColor: isDark ? '#111827' : '#E5E7EB',
     borderTopWidth: 1,
     paddingBottom: 8,
     paddingTop: 8,
     height: 80,
-  };
+  } as const;
 
   const tabBarLabelStyle = {
     fontSize: 12,
     fontWeight: '500' as const,
     marginTop: 4,
-  };
+  } as const;
+
+  const textColor = colors.text;
+  const cardBg = colors.surface;
+  const cardBorder = isDark ? '#1F2937' : '#E5E7EB';
 
   return (
     <>
@@ -79,10 +79,7 @@ export default function TabLayout() {
         <View
           style={[
             styles.overlay,
-            {
-              backgroundColor:
-                colorScheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.4)',
-            },
+            { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.4)' },
           ]}
         >
           <TouchableOpacity
@@ -94,31 +91,21 @@ export default function TabLayout() {
             style={[
               styles.sidebar,
               {
-                backgroundColor: colorScheme === 'dark' ? '#111827' : '#FFFFFF',
-                borderRightColor:
-                  colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                backgroundColor: colors.background,
+                borderRightColor: isDark ? '#374151' : '#E5E7EB',
                 transform: [{ translateX: sidebarAnim }],
                 width: sidebarWidth,
               },
             ]}
           >
-            <Text
-              style={[
-                styles.sidebarTitle,
-                { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-              ]}
-            >
+            <Text style={[styles.sidebarTitle, { color: textColor }]}>
               More
             </Text>
             <View style={styles.sidebarGroup}>
               <TouchableOpacity
                 style={[
                   styles.sidebarItem,
-                  {
-                    backgroundColor:
-                      colorScheme === 'dark' ? '#0B1220' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  },
+                  { backgroundColor: cardBg, borderColor: cardBorder },
                 ]}
                 onPress={() => {
                   closeMore();
@@ -130,23 +117,14 @@ export default function TabLayout() {
                 >
                   <UserIcon size={18} color={'#10B981'} />
                 </View>
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-                  ]}
-                >
+                <Text style={[styles.sidebarText, { color: textColor }]}>
                   Profile
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.sidebarItem,
-                  {
-                    backgroundColor:
-                      colorScheme === 'dark' ? '#0B1220' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  },
+                  { backgroundColor: cardBg, borderColor: cardBorder },
                 ]}
                 onPress={() => {
                   closeMore();
@@ -158,23 +136,14 @@ export default function TabLayout() {
                 >
                   <Phone size={18} color={'#3B82F6'} />
                 </View>
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-                  ]}
-                >
+                <Text style={[styles.sidebarText, { color: textColor }]}>
                   Meetings
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.sidebarItem,
-                  {
-                    backgroundColor:
-                      colorScheme === 'dark' ? '#0B1220' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  },
+                  { backgroundColor: cardBg, borderColor: cardBorder },
                 ]}
                 onPress={() => {
                   closeMore();
@@ -186,23 +155,14 @@ export default function TabLayout() {
                 >
                   <Mail size={18} color={'#F59E0B'} />
                 </View>
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-                  ]}
-                >
+                <Text style={[styles.sidebarText, { color: textColor }]}>
                   Emails
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.sidebarItem,
-                  {
-                    backgroundColor:
-                      colorScheme === 'dark' ? '#0B1220' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  },
+                  { backgroundColor: cardBg, borderColor: cardBorder },
                 ]}
                 onPress={() => {
                   closeMore();
@@ -214,23 +174,14 @@ export default function TabLayout() {
                 >
                   <Settings size={18} color={'#6366F1'} />
                 </View>
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-                  ]}
-                >
+                <Text style={[styles.sidebarText, { color: textColor }]}>
                   Settings
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.sidebarItem,
-                  {
-                    backgroundColor:
-                      colorScheme === 'dark' ? '#0B1220' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  },
+                  { backgroundColor: cardBg, borderColor: cardBorder },
                 ]}
                 onPress={() => {
                   closeMore();
@@ -242,23 +193,14 @@ export default function TabLayout() {
                 >
                   <NotepadTextDashed size={18} color={'#6366F1'} />
                 </View>
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-                  ]}
-                >
+                <Text style={[styles.sidebarText, { color: textColor }]}>
                   Templates
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.sidebarItem,
-                  {
-                    backgroundColor:
-                      colorScheme === 'dark' ? '#0B1220' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  },
+                  { backgroundColor: cardBg, borderColor: cardBorder },
                 ]}
                 onPress={() => {
                   closeMore();
@@ -270,13 +212,27 @@ export default function TabLayout() {
                 >
                   <Calendar size={18} color={'#6366F1'} />
                 </View>
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' },
-                  ]}
-                >
+                <Text style={[styles.sidebarText, { color: textColor }]}>
                   Calendar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.sidebarItem,
+                  { backgroundColor: cardBg, borderColor: cardBorder },
+                ]}
+                onPress={() => {
+                  closeMore();
+                  router.push('/(tabs)/subscription');
+                }}
+              >
+                <View
+                  style={[styles.iconWrap, { backgroundColor: '#F59E0B20' }]}
+                >
+                  <Ionicons name="diamond" size={18} color={'#F59E0B'} />
+                </View>
+                <Text style={[styles.sidebarText, { color: textColor }]}>
+                  Subscription
                 </Text>
               </TouchableOpacity>
             </View>
@@ -289,8 +245,7 @@ export default function TabLayout() {
           tabBarStyle,
           tabBarLabelStyle,
           tabBarActiveTintColor: '#10B981',
-          tabBarInactiveTintColor:
-            colorScheme === 'dark' ? '#9CA3AF' : '#6B7280',
+          tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#6B7280',
         }}
       >
         <Tabs.Screen
@@ -350,18 +305,14 @@ export default function TabLayout() {
                   <Menu
                     size={22}
                     color={
-                      selected
-                        ? '#10B981'
-                        : colorScheme === 'dark'
-                        ? '#9CA3AF'
-                        : '#6B7280'
+                      selected ? '#10B981' : isDark ? '#9CA3AF' : '#6B7280'
                     }
                   />
                   <Text
                     style={{
                       fontSize: 12,
                       marginTop: 4,
-                      color: colorScheme === 'dark' ? '#E5E7EB' : '#111827',
+                      color: textColor,
                     }}
                   >
                     More
@@ -380,6 +331,7 @@ export default function TabLayout() {
         <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen name="settings" options={{ href: null }} />
         <Tabs.Screen name="templates" options={{ href: null }} />
+        <Tabs.Screen name="subscription" options={{ href: null }} />
       </Tabs>
     </>
   );
@@ -419,6 +371,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 6,
     borderRadius: 8,
+    borderWidth: 1,
   },
   sidebarText: { fontSize: 16, fontWeight: '600' },
   sidebarGroup: {

@@ -19,6 +19,8 @@ import { LeadCreateModal } from '@/components/leads/LeadCreateModal';
 import { LeadMapModal } from '@/components/leads/LeadMapModal';
 import { LeadDetailModal } from '@/components/leads/LeadDetailModal';
 import { LeadFilterSheet } from '@/components/leads/LeadFilterSheet';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 import type { LeadRecord } from '@/hooks/useLeads';
 
@@ -34,8 +36,17 @@ export default function LeadsScreen() {
   const leads = (leadsQuery.data ?? []) as LeadRecord[];
   const loading = leadsQuery.isLoading;
 
+  const {
+    guardLeadCreation,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
+
   const handleCreateLead = () => {
-    // react-query will auto-refetch; nothing needed
+    if (guardLeadCreation()) {
+      setShowLeadForm(true);
+    }
   };
 
   const handleLeadPress = (leadId: string) => {
@@ -45,7 +56,7 @@ export default function LeadsScreen() {
 
   const createClient = useCreateClient();
   const convertLeadToClient = useConvertLeadToClient();
-  
+
   const handleConvertToClient = async (leadId: string) => {
     try {
       const lead = leads.find((l) => l.id === leadId);
@@ -178,6 +189,12 @@ export default function LeadsScreen() {
           }}
         />
       )}
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
 
       <ScrollView
         style={styles.scrollView}
