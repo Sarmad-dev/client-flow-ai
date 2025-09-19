@@ -1,4 +1,4 @@
-package com.sarmad_khan2694.nexasuit
+package com.sarmadkhan2694.nexasuit
 
 import android.app.Application
 import android.content.res.Configuration
