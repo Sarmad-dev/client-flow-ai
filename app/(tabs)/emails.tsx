@@ -3,9 +3,19 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function EmailsScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const {
+    guardEmailSending,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -16,7 +26,11 @@ export default function EmailsScreen() {
         </View>
         <View style={{ gap: 12 }}>
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/emails-analytics')}
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/emails-analytics');
+              }
+            }}
             style={[
               styles.navCard,
               { backgroundColor: colors.surface, borderColor: colors.border },
@@ -33,7 +47,11 @@ export default function EmailsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/emails-inbox' as any)}
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/emails-inbox' as any);
+              }
+            }}
             style={[
               styles.navCard,
               { backgroundColor: colors.surface, borderColor: colors.border },
@@ -50,6 +68,12 @@ export default function EmailsScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </SafeAreaView>
   );
 }

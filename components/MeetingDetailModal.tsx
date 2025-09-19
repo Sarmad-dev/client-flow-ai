@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,25 +15,19 @@ import {
   MapPin,
   Video,
   Mic,
+  Edit,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { VoiceRecorder } from './VoiceRecorder';
-
-interface Meeting {
-  id: string;
-  title: string;
-  client: string;
-  date: string;
-  duration: string;
-  summary: string;
-  status: 'upcoming' | 'completed';
-}
+import { MeetingEditModal } from './meetings/MeetingEditModal';
+import { MeetingRecord, EnrichedMeeting } from '@/hooks/useMeetings';
 
 interface MeetingDetailModalProps {
   visible: boolean;
-  meeting: Meeting | null;
+  meeting: EnrichedMeeting | null;
   onClose: () => void;
   onSummaryUpdated?: (meetingId: string, summary: string) => void;
+  onMeetingUpdated?: (meeting: EnrichedMeeting) => void;
 }
 
 export function MeetingDetailModal({
@@ -41,17 +35,89 @@ export function MeetingDetailModal({
   meeting,
   onClose,
   onSummaryUpdated,
+  onMeetingUpdated,
 }: MeetingDetailModalProps) {
   const { colors } = useTheme();
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [currentMeeting, setCurrentMeeting] = useState<EnrichedMeeting | null>(
+    meeting
+  );
 
-  if (!meeting) return null;
+  // Update currentMeeting when meeting prop changes
+  useEffect(() => {
+    setCurrentMeeting(meeting);
+  }, [meeting]);
 
-  const isCompleted = meeting.status === 'completed';
+  if (!currentMeeting) return null;
+
+  // Helper function to safely parse dates
+  const parseDate = (dateString: string): Date => {
+    if (!dateString) return new Date();
+
+    // Try different date parsing approaches
+    let date = new Date(dateString);
+
+    // If the first attempt fails, try parsing as ISO string
+    if (isNaN(date.getTime())) {
+      date = new Date(dateString + 'Z'); // Add Z for UTC if missing
+    }
+
+    // If still fails, try parsing as timestamp
+    if (isNaN(date.getTime())) {
+      const timestamp = parseInt(dateString);
+      if (!isNaN(timestamp)) {
+        date = new Date(timestamp);
+      }
+    }
+
+    // If still fails, try parsing with different formats
+    if (isNaN(date.getTime())) {
+      // Try parsing as date with timezone offset
+      const dateWithOffset = dateString.replace(
+        /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/,
+        '$1Z'
+      );
+      date = new Date(dateWithOffset);
+    }
+
+    // If all attempts fail, return current date as fallback
+    if (isNaN(date.getTime())) {
+      console.warn('Failed to parse date:', dateString);
+      return new Date();
+    }
+
+    return date;
+  };
+
+  const isCompleted = currentMeeting.status === 'completed';
+  const isScheduled = currentMeeting.status === 'scheduled';
+
+  // Determine if meeting is upcoming or past based on current time
+  const getMeetingStatus = () => {
+    if (isCompleted) return 'completed';
+
+    const now = new Date();
+    const startTime = parseDate(currentMeeting.start_time);
+
+    // If start time is invalid, return scheduled
+    if (isNaN(startTime.getTime())) return 'scheduled';
+
+    // If meeting hasn't started yet, it's upcoming
+    if (startTime > now) return 'upcoming';
+
+    // If meeting has started, it's past
+    return 'past';
+  };
+
+  const meetingStatus = getMeetingStatus();
 
   const handleSummaryCreated = (summary: string) => {
-    onSummaryUpdated?.(meeting.id, summary);
+    // Update local state
+    setCurrentMeeting({ ...currentMeeting, summary });
     setShowVoiceRecorder(false);
+    // Notify parent
+    onSummaryUpdated?.(currentMeeting.id, summary);
   };
 
   return (
@@ -69,9 +135,17 @@ export function MeetingDetailModal({
             <Text style={[styles.title, { color: colors.text }]}>
               Meeting Details
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color={colors.text} strokeWidth={2} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[styles.editButton, { backgroundColor: colors.primary }]}
+                onPress={() => setShowEditModal(true)}
+              >
+                <Edit size={18} color="#FFFFFF" strokeWidth={2} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <X size={24} color={colors.text} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView
@@ -83,7 +157,7 @@ export function MeetingDetailModal({
               style={[styles.infoCard, { backgroundColor: colors.surface }]}
             >
               <Text style={[styles.meetingTitle, { color: colors.text }]}>
-                {meeting.title}
+                {currentMeeting.title}
               </Text>
 
               <View style={styles.infoRow}>
@@ -91,7 +165,7 @@ export function MeetingDetailModal({
                 <Text
                   style={[styles.infoText, { color: colors.textSecondary }]}
                 >
-                  {meeting.client}
+                  {currentMeeting.client_name || 'No Client Assigned'}
                 </Text>
               </View>
 
@@ -104,11 +178,18 @@ export function MeetingDetailModal({
                 <Text
                   style={[styles.infoText, { color: colors.textSecondary }]}
                 >
-                  {new Date(meeting.date).toLocaleDateString()} at{' '}
-                  {new Date(meeting.date).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                  {(() => {
+                    const startDate = parseDate(currentMeeting.start_time);
+                    return isNaN(startDate.getTime())
+                      ? 'Invalid Date'
+                      : `${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString(
+                          [],
+                          {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }
+                        )}`;
+                  })()}
                 </Text>
               </View>
 
@@ -117,7 +198,23 @@ export function MeetingDetailModal({
                 <Text
                   style={[styles.infoText, { color: colors.textSecondary }]}
                 >
-                  {meeting.duration}
+                  {(() => {
+                    const startDate = parseDate(currentMeeting.start_time);
+                    const endDate = parseDate(currentMeeting.end_time);
+                    if (
+                      isNaN(startDate.getTime()) ||
+                      isNaN(endDate.getTime())
+                    ) {
+                      return 'Invalid Duration';
+                    }
+                    const duration = Math.max(
+                      1,
+                      Math.round(
+                        (endDate.getTime() - startDate.getTime()) / 60000
+                      )
+                    );
+                    return `${duration} min`;
+                  })()}
                 </Text>
               </View>
 
@@ -125,74 +222,77 @@ export function MeetingDetailModal({
                 style={[
                   styles.statusBadge,
                   {
-                    backgroundColor: isCompleted
-                      ? colors.success
-                      : colors.warning,
+                    backgroundColor:
+                      meetingStatus === 'completed'
+                        ? colors.success
+                        : meetingStatus === 'upcoming'
+                        ? colors.primary
+                        : meetingStatus === 'past'
+                        ? colors.error || '#FF6B6B'
+                        : colors.warning,
                   },
                 ]}
               >
                 <Text style={styles.statusText}>
-                  {isCompleted ? 'Completed' : 'Upcoming'}
+                  {meetingStatus === 'completed'
+                    ? 'Completed'
+                    : meetingStatus === 'upcoming'
+                    ? 'Upcoming'
+                    : meetingStatus === 'past'
+                    ? 'Past'
+                    : 'Scheduled'}
                 </Text>
               </View>
             </View>
 
             {/* Summary Section */}
-            {isCompleted && (
-              <View
-                style={[
-                  styles.summaryCard,
-                  { backgroundColor: colors.surface },
-                ]}
-              >
-                <View style={styles.summaryHeader}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                    Meeting Summary
+            <View
+              style={[styles.summaryCard, { backgroundColor: colors.surface }]}
+            >
+              <View style={styles.summaryHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Meeting Summary
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.recordButton,
+                    { backgroundColor: colors.primary },
+                  ]}
+                  onPress={() => setShowVoiceRecorder(!showVoiceRecorder)}
+                >
+                  <Mic size={16} color="#FFFFFF" strokeWidth={2} />
+                  <Text style={styles.recordButtonText}>
+                    {currentMeeting.summary
+                      ? 'Update Summary'
+                      : 'Record Summary'}
                   </Text>
-                  {!meeting.summary && (
-                    <TouchableOpacity
-                      style={[
-                        styles.recordButton,
-                        { backgroundColor: colors.primary },
-                      ]}
-                      onPress={() => setShowVoiceRecorder(!showVoiceRecorder)}
-                    >
-                      <Mic size={16} color="#FFFFFF" strokeWidth={2} />
-                      <Text style={styles.recordButtonText}>
-                        Record Summary
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {meeting.summary ? (
-                  <Text style={[styles.summaryText, { color: colors.text }]}>
-                    {meeting.summary}
-                  </Text>
-                ) : (
-                  <Text
-                    style={[
-                      styles.emptySummary,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    No summary recorded yet. Use the voice recorder to add a
-                    meeting summary.
-                  </Text>
-                )}
-
-                {/* Voice Recorder */}
-                {showVoiceRecorder && (
-                  <View style={styles.voiceRecorderContainer}>
-                    <VoiceRecorder
-                      mode="summary"
-                      meetingId={meeting.id}
-                      onSummaryCreated={handleSummaryCreated}
-                    />
-                  </View>
-                )}
+                </TouchableOpacity>
               </View>
-            )}
+
+              {currentMeeting.summary ? (
+                <Text style={[styles.summaryText, { color: colors.text }]}>
+                  {currentMeeting.summary}
+                </Text>
+              ) : (
+                <Text
+                  style={[styles.emptySummary, { color: colors.textSecondary }]}
+                >
+                  No summary recorded yet. Use the voice recorder to add a
+                  meeting summary.
+                </Text>
+              )}
+
+              {/* Voice Recorder */}
+              {showVoiceRecorder && (
+                <View style={styles.voiceRecorderContainer}>
+                  <VoiceRecorder
+                    mode="summary"
+                    meetingId={currentMeeting.id}
+                    onSummaryCreated={handleSummaryCreated}
+                  />
+                </View>
+              )}
+            </View>
           </ScrollView>
 
           <View style={styles.actions}>
@@ -207,7 +307,8 @@ export function MeetingDetailModal({
                 Close
               </Text>
             </TouchableOpacity>
-            {!isCompleted && (
+            {(meetingStatus === 'upcoming' ||
+              meetingStatus === 'scheduled') && (
               <TouchableOpacity
                 style={[styles.joinButton, { backgroundColor: colors.primary }]}
               >
@@ -216,6 +317,23 @@ export function MeetingDetailModal({
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Edit Modal */}
+          <MeetingEditModal
+            visible={showEditModal}
+            onClose={() => setShowEditModal(false)}
+            meeting={currentMeeting}
+            onUpdated={(updatedMeeting) => {
+              // Convert MeetingRecord back to EnrichedMeeting for state update
+              const enrichedMeeting: EnrichedMeeting = {
+                ...updatedMeeting,
+                client_name: currentMeeting?.client_name || null,
+              };
+              setCurrentMeeting(enrichedMeeting);
+              setShowEditModal(false);
+              onMeetingUpdated?.(enrichedMeeting);
+            }}
+          />
         </View>
       </View>
     </Modal>
@@ -244,6 +362,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButton: {
     padding: 4,

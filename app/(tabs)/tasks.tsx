@@ -21,6 +21,8 @@ import {
 import { TaskHeader } from '@/components/tasks/TaskHeader';
 import { TaskSearchBar } from '@/components/tasks/TaskSearchBar';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import * as Notifications from 'expo-notifications';
 import { Trash2 } from 'lucide-react-native';
 
@@ -34,6 +36,13 @@ export default function TasksScreen() {
   const tasks = tasksQuery.data ?? [];
   const toggleTask = useToggleTaskStatus();
   const deleteTask = useDeleteTask();
+
+  const {
+    guardTaskCreation,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
   const activeTasks = useMemo(
     () => tasks.filter((t) => t.status !== 'completed'),
     [tasks]
@@ -119,7 +128,11 @@ export default function TasksScreen() {
       >
         <TaskHeader
           onToggleFilter={() => setShowFilter((s) => !s)}
-          onOpenForm={() => setShowTaskForm(true)}
+          onOpenForm={() => {
+            if (guardTaskCreation()) {
+              setShowTaskForm(true);
+            }
+          }}
         />
 
         <TaskSearchBar value={searchQuery} onChangeText={setSearchQuery} />
@@ -129,6 +142,12 @@ export default function TasksScreen() {
         <TaskCreateModal
           visible={showTaskForm}
           onClose={() => setShowTaskForm(false)}
+        />
+
+        <SubscriptionModal
+          visible={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          featureName={modalFeatureName}
         />
 
         <ScrollView

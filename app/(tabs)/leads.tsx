@@ -134,7 +134,7 @@ export default function LeadsScreen() {
       <LeadHeader
         onToggleFilter={() => setShowFilter((s) => !s)}
         onOpenMap={() => setShowMapView(true)}
-        onOpenForm={() => setShowLeadForm(true)}
+        onOpenForm={handleCreateLead}
       />
 
       <LeadStats
@@ -149,7 +149,10 @@ export default function LeadsScreen() {
       <LeadCreateModal
         visible={showLeadForm}
         onClose={() => setShowLeadForm(false)}
-        onCreated={handleCreateLead}
+        onCreated={() => {
+          setShowLeadForm(false);
+          leadsQuery.refetch();
+        }}
       />
 
       <LeadMapModal
@@ -164,7 +167,10 @@ export default function LeadsScreen() {
           location_lat: l.location_lat ?? undefined,
           location_lng: l.location_lng ?? undefined,
         }))}
-        onLeadCreated={handleCreateLead}
+        onLeadCreated={() => {
+          setShowMapView(false);
+          leadsQuery.refetch();
+        }}
       />
 
       {selectedLeadId && (

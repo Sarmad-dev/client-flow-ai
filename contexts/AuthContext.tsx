@@ -163,7 +163,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signInWithGoogle = async () => {
     try {
-      const redirectTo = Linking.createURL('/');
+      console.log('signInWithGoogle');
+      WebBrowser.maybeCompleteAuthSession();
+
+      const redirectTo = Linking.createURL('/auth/callback');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -171,6 +174,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           skipBrowserRedirect: false,
         },
       });
+
+      console.log('data', data);
       if (error) return { error };
       // The session will be set after the deep link returns and exchangeCodeForSession succeeds
       return { error: null };

@@ -23,10 +23,12 @@ import {
   ExternalLink,
   Send,
   PhoneCall,
+  Edit,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { ClientEditModal } from '@/components/clients/ClientEditModal';
 
 interface Client {
   id: string;
@@ -47,12 +49,14 @@ interface ClientDetailViewProps {
   visible: boolean;
   onClose: () => void;
   clientId: string;
+  onClientUpdated?: () => void;
 }
 
 export function ClientDetailView({
   visible,
   onClose,
   clientId,
+  onClientUpdated,
 }: ClientDetailViewProps) {
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -61,6 +65,7 @@ export function ClientDetailView({
   const [meetings, setMeetings] = useState<any[]>([]);
   const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (visible && clientId) {
@@ -201,9 +206,17 @@ export function ClientDetailView({
           <Text style={[styles.title, { color: colors.text }]}>
             Client Details
           </Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <X size={24} color={colors.text} strokeWidth={2} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.editButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowEditModal(true)}
+            >
+              <Edit size={18} color="#FFFFFF" strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <X size={24} color={colors.text} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -547,6 +560,18 @@ export function ClientDetailView({
             )}
           </View>
         </ScrollView>
+
+        {/* Edit Modal */}
+        <ClientEditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          client={client}
+          onUpdated={(updatedClient) => {
+            setClient(updatedClient);
+            setShowEditModal(false);
+            onClientUpdated?.();
+          }}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -566,6 +591,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButton: {
     padding: 4,

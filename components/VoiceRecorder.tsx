@@ -29,6 +29,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useVoiceRecording } from '@/hooks/useVoiceRecording';
+import { useUpdateMeeting } from '@/hooks/useMeetings';
+import { useCreateTask } from '@/hooks/useTasks';
 import {
   transcribeAudio,
   analyzeTaskFromTranscription,
@@ -52,6 +54,8 @@ export function VoiceRecorder({
 }: VoiceRecorderProps) {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const updateMeeting = useUpdateMeeting();
+  const createTask = useCreateTask();
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
@@ -259,20 +263,30 @@ export function VoiceRecorder({
 
       // Only save to database if meetingId is provided
       if (meetingId) {
-        // Store voice recording metadata
-        await supabase.from('voice_recordings').insert({
-          user_id: user?.id,
-          file_path: audioUri,
-          transcription: transcriptionText,
-          recording_type: 'meeting_summary',
-          processed: true,
-        });
+        // Store voice recording metadata and get the ID
+        const { data: voiceRecording, error: voiceError } = await supabase
+          .from('voice_recordings')
+          .insert({
+            user_id: user?.id,
+            file_path: audioUri,
+            transcription: transcriptionText,
+            recording_type: 'meeting_summary',
+            processed: true,
+          })
+          .select()
+          .single();
 
-        // Update meeting summary
-        await supabase
-          .from('meetings')
-          .update({ summary: finalSummary })
-          .eq('id', meetingId);
+        if (voiceError) {
+          console.error('Error creating voice recording:', voiceError);
+          throw voiceError;
+        }
+
+        // Update meeting with summary and voice recording ID using the hook
+        await updateMeeting.mutateAsync({
+          id: meetingId,
+          summary: finalSummary,
+          voice_recording_id: voiceRecording.id,
+        });
       }
 
       onSummaryCreated?.(finalSummary);
@@ -307,9 +321,27 @@ export function VoiceRecorder({
     try {
       if (!pendingTaskData) return;
 
-      // Update task data with selected client and due date
-      const finalTaskData = {
-        user_id: pendingTaskData.user_id,
+      // Store voice recording metadata first and get the ID
+      const { data: voiceRecording, error: voiceError } = await supabase
+        .from('voice_recordings')
+        .insert({
+          user_id: user?.id,
+          file_path: pendingTaskData.audio_uri,
+          transcription: pendingTaskData.transcription,
+          ai_analysis: JSON.stringify(pendingTaskData.ai_analysis),
+          recording_type: 'task',
+          processed: true,
+        })
+        .select()
+        .single();
+
+      if (voiceError) {
+        console.error('Error creating voice recording:', voiceError);
+        throw voiceError;
+      }
+
+      // Create task using the hook with voice recording ID
+      const task = await createTask.mutateAsync({
         client_id: client.id,
         title: pendingTaskData.title,
         description: pendingTaskData.description,
@@ -319,30 +351,12 @@ export function VoiceRecorder({
         ai_generated: pendingTaskData.ai_generated,
         ai_confidence_score: pendingTaskData.ai_confidence_score,
         status: pendingTaskData.status,
-      };
-
-      // Create task in database
-      const { data: task, error } = await supabase
-        .from('tasks')
-        .insert(finalTaskData)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Store voice recording metadata
-      await supabase.from('voice_recordings').insert({
-        user_id: user?.id,
-        file_path: pendingTaskData.audio_uri,
-        transcription: pendingTaskData.transcription,
-        ai_analysis: JSON.stringify(pendingTaskData.ai_analysis),
-        recording_type: 'task',
-        processed: true,
+        voice_recording_id: voiceRecording.id,
       });
 
       Alert.alert(
         'Task Created!',
-        `Created task: "${finalTaskData.title}" for ${client.name}`,
+        `Created task: "${pendingTaskData.title}" for ${client.name}`,
         [{ text: 'OK', onPress: () => onTaskCreated?.(task) }]
       );
 

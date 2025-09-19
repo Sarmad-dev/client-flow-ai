@@ -6,13 +6,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { CalendarList } from 'react-native-calendars';
 import type { DateData } from 'react-native-calendars';
-import { useMeetings } from '@/hooks/useMeetings';
-import { useTasks } from '@/hooks/useTasks';
+import { useMeetings, type EnrichedMeeting } from '@/hooks/useMeetings';
+import { useTasks, type TaskRecord } from '@/hooks/useTasks';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { MeetingDetailModal } from '@/components/MeetingDetailModal';
+import { TaskEditModal } from '@/components/tasks/TaskEditModal';
 
 export default function CalendarScreen() {
   const { colors } = useTheme();
@@ -23,35 +26,57 @@ export default function CalendarScreen() {
     new Date().toISOString().slice(0, 10)
   );
 
-  const dayItems = useMemo(() => {
-    const items: { date: string; title: string; kind: 'task' | 'meeting' }[] =
-      [];
+  const tasksByDate = useMemo(() => {
+    const map: Record<string, TaskRecord[]> = {};
     for (const t of tasks) {
       if (!t.due_date) continue;
-      items.push({
-        date: t.due_date.slice(0, 10),
-        title: `Task: ${t.title}`,
-        kind: 'task',
-      });
+      const d = t.due_date.slice(0, 10);
+      map[d] = map[d] ? [...map[d], t] : [t];
     }
+    return map;
+  }, [tasks]);
+
+  const meetingsByDate = useMemo(() => {
+    const map: Record<string, EnrichedMeeting[]> = {};
     for (const m of meetings) {
       if (!m.start_time) continue;
-      items.push({
-        date: m.start_time.slice(0, 10),
-        title: `Meeting: ${m.title}`,
-        kind: 'meeting',
-      });
+      const d = m.start_time.slice(0, 10);
+      map[d] = map[d] ? [...map[d], m] : [m];
     }
-    return items;
-  }, [tasks, meetings]);
+    return map;
+  }, [meetings]);
+
+  const firstItemTitleByDate = useMemo(() => {
+    const map: Record<string, string> = {};
+    const dateKeys = new Set<string>([
+      ...Object.keys(tasksByDate),
+      ...Object.keys(meetingsByDate),
+    ]);
+    for (const d of dateKeys) {
+      const t = tasksByDate[d]?.[0];
+      const m = meetingsByDate[d]?.[0];
+      const chosen = t ?? m;
+      if (!chosen) continue;
+      const prefix = t ? 'Task: ' : 'Meeting: ';
+      map[d] = `${prefix}${(chosen as any).title}`;
+    }
+    return map;
+  }, [tasksByDate, meetingsByDate]);
 
   const markedDates = useMemo(() => {
     const marks: Record<string, any> = {};
-    for (const it of dayItems) {
-      marks[it.date] = {
-        ...(marks[it.date] || {}),
+    for (const d of Object.keys(tasksByDate)) {
+      marks[d] = {
+        ...(marks[d] || {}),
         marked: true,
-        dotColor: it.kind === 'task' ? colors.primary : colors.secondary,
+        dotColor: colors.primary,
+      };
+    }
+    for (const d of Object.keys(meetingsByDate)) {
+      marks[d] = {
+        ...(marks[d] || {}),
+        marked: true,
+        dotColor: colors.secondary,
       };
     }
     marks[selectedDate] = {
@@ -60,12 +85,20 @@ export default function CalendarScreen() {
       selectedColor: colors.primary,
     };
     return marks;
-  }, [dayItems, selectedDate, colors.primary, colors.secondary]);
+  }, [
+    tasksByDate,
+    meetingsByDate,
+    selectedDate,
+    colors.primary,
+    colors.secondary,
+  ]);
 
-  const selectedItems = useMemo(
-    () => dayItems.filter((d) => d.date === selectedDate),
-    [dayItems, selectedDate]
-  );
+  const [showDateDialog, setShowDateDialog] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] =
+    useState<EnrichedMeeting | null>(null);
+  const [showMeetingDetail, setShowMeetingDetail] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
+  const [showTaskEdit, setShowTaskEdit] = useState(false);
 
   return (
     <SafeAreaView
@@ -85,10 +118,56 @@ export default function CalendarScreen() {
         )}
       </View>
       <CalendarList
-        onDayPress={(day: DateData) => setSelectedDate(day.dateString)}
+        onDayPress={(day: DateData) => {
+          setSelectedDate(day.dateString);
+          setShowDateDialog(true);
+        }}
         pastScrollRange={3}
         futureScrollRange={6}
         markedDates={markedDates}
+        dayComponent={({ date }) => {
+          if (!date) return null;
+          const d = date.dateString;
+          const title = firstItemTitleByDate[d];
+          const isSelected = d === selectedDate;
+          return (
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedDate(d);
+                setShowDateDialog(true);
+              }}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 4,
+                borderRadius: 8,
+                backgroundColor: isSelected ? colors.primary : 'transparent',
+              }}
+            >
+              <Text
+                style={{
+                  color: isSelected ? '#fff' : colors.text,
+                  fontWeight: '700',
+                  marginBottom: title ? 4 : 0,
+                  textAlign: 'center',
+                }}
+              >
+                {date.day}
+              </Text>
+              {title ? (
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={{
+                    color: isSelected ? '#fff' : colors.textSecondary,
+                    fontSize: 12,
+                  }}
+                >
+                  {title}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+          );
+        }}
         theme={{
           calendarBackground: colors.background,
           dayTextColor: colors.text,
@@ -104,23 +183,111 @@ export default function CalendarScreen() {
         style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}
       />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
-        {selectedItems.length === 0 ? (
-          <Text style={{ color: colors.textSecondary }}>No items</Text>
-        ) : (
-          selectedItems.map((it, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.listItem,
-                { borderColor: colors.border, backgroundColor: colors.surface },
-              ]}
+      {/* Date items dialog */}
+      <Modal visible={showDateDialog} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Items on {selectedDate}
+            </Text>
+
+            <ScrollView contentContainerStyle={{ paddingVertical: 8, gap: 12 }}>
+              <View>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.textSecondary }]}
+                >
+                  Tasks ({tasksByDate[selectedDate]?.length ?? 0})
+                </Text>
+                {(tasksByDate[selectedDate] ?? []).map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => {
+                      setSelectedTask(t);
+                      setShowTaskEdit(true);
+                      setShowDateDialog(false);
+                    }}
+                    style={[
+                      styles.listItem,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.background,
+                      },
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={{ color: colors.text }}
+                    >
+                      {t.title}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.textSecondary }]}
+                >
+                  Meetings ({meetingsByDate[selectedDate]?.length ?? 0})
+                </Text>
+                {(meetingsByDate[selectedDate] ?? []).map((m) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    onPress={() => {
+                      setSelectedMeeting(m);
+                      setShowMeetingDetail(true);
+                      setShowDateDialog(false);
+                    }}
+                    style={[
+                      styles.listItem,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.background,
+                      },
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={{ color: colors.text }}
+                    >
+                      {m.title}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setShowDateDialog(false)}
+              style={[styles.closeBtn, { borderColor: colors.border }]}
             >
-              <Text style={{ color: colors.text }}>{it.title}</Text>
-            </View>
-          ))
-        )}
-      </ScrollView>
+              <Text style={{ color: colors.text }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Meeting Detail */}
+      <MeetingDetailModal
+        meeting={selectedMeeting}
+        visible={showMeetingDetail}
+        onClose={() => setShowMeetingDetail(false)}
+      />
+
+      {/* Task Edit (acts as detail) */}
+      <TaskEditModal
+        visible={showTaskEdit}
+        onClose={() => setShowTaskEdit(false)}
+        task={selectedTask}
+        onUpdated={() => {}}
+      />
     </SafeAreaView>
   );
 }
@@ -141,4 +308,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   listItem: { borderWidth: 1, borderRadius: 10, padding: 12 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    width: '100%',
+    maxHeight: '70%',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  closeBtn: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
 });

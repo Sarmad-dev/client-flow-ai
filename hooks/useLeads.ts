@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { LeadFormData } from '@/lib/validation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export interface LeadRecord {
   id: string;
@@ -78,6 +79,7 @@ export function useLead(id?: string) {
 export function useCreateLead() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { incrementUsage } = useSubscription();
   const userId = user?.id;
 
   return useMutation({
@@ -126,8 +128,9 @@ export function useCreateLead() {
       if (error) throw error;
       return data as unknown as LeadRecord;
     },
-    onSuccess: (_data) => {
+    onSuccess: async (_data) => {
       queryClient.invalidateQueries({ queryKey: leadsKeys.all as any });
+      await incrementUsage('leads');
     },
   });
 }

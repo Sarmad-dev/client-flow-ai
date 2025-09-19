@@ -15,6 +15,8 @@ import { ClientCreateModal } from '@/components/clients/ClientCreateModal';
 import { ClientMapModal } from '@/components/clients/ClientMapModal';
 import { ClientDetailModal } from '@/components/clients/ClientDetailModal';
 import { useClients, ClientRecord } from '@/hooks/useClients';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 export default function ClientsScreen() {
   const { colors } = useTheme();
@@ -27,8 +29,17 @@ export default function ClientsScreen() {
   const clients = clientsQuery.data ?? [];
   const loading = clientsQuery.isLoading;
 
+  const {
+    guardClientCreation,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
+
   const handleCreateClient = () => {
-    // refetch handled by react-query
+    if (guardClientCreation()) {
+      setShowClientForm(true);
+    }
   };
 
   const handleClientPress = (clientId: string) => {
@@ -69,7 +80,7 @@ export default function ClientsScreen() {
     >
       <ClientHeader
         onOpenMap={() => setShowMapView(true)}
-        onOpenForm={() => setShowClientForm(true)}
+        onOpenForm={handleCreateClient}
       />
       <ClientSearchBar value={searchQuery} onChangeText={setSearchQuery} />
 
@@ -82,7 +93,7 @@ export default function ClientsScreen() {
       <ClientMapModal
         visible={showMapView}
         onClose={() => setShowMapView(false)}
-        clients={clients}
+        clients={clients.filter((client) => client.company !== null) as any}
       />
 
       {selectedClientId && (
@@ -95,6 +106,12 @@ export default function ClientsScreen() {
           clientId={selectedClientId}
         />
       )}
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
 
       <ScrollView
         style={styles.scrollView}

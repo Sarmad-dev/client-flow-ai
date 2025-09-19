@@ -5,52 +5,83 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { MeetingCard } from '@/components/MeetingCard';
-import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { MeetingForm } from '@/components/MeetingForm';
 import { useClients } from '@/hooks/useClients';
-import { useMeetings, useCreateMeeting } from '@/hooks/useMeetings';
+import {
+  useMeetings,
+  useCreateMeeting,
+  EnrichedMeeting,
+} from '@/hooks/useMeetings';
 import { MeetingFormData } from '@/lib/validation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MeetingDetailModal } from '@/components/MeetingDetailModal';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 export default function MeetingsScreen() {
   const { colors } = useTheme();
   const [showMeetingForm, setShowMeetingForm] = useState(false);
-  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [selectedMeeting, setSelectedMeeting] =
+    useState<EnrichedMeeting | null>(null);
   const [showMeetingDetail, setShowMeetingDetail] = useState(false);
   const { data: meetings = [] } = useMeetings();
   const { data: clients = [] } = useClients();
   const createMeeting = useCreateMeeting();
 
+  const {
+    guardMeetingsAccess,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
+
   const handleCreateMeeting = async (form: MeetingFormData) => {
-    const payload = {
-      client_id: form.clientId,
-      title: form.title,
-      description: form.description || null,
-      meeting_type: form.meetingType,
-      start_time: form.startDate.toISOString(),
-      end_time: form.endDate.toISOString(),
-      location: form.location || null,
-      agenda: form.agenda || null,
-      summary: null,
-    } as const;
-    await createMeeting.mutateAsync(payload as any);
+    try {
+      const payload = {
+        client_id: form.clientId,
+        title: form.title,
+        description: form.description || null,
+        meeting_type: form.meetingType,
+        start_time: form.startDate.toISOString(),
+        end_time: form.endDate.toISOString(),
+        location: form.location || null,
+        agenda: form.agenda || null,
+        summary: null,
+        voice_recording_id: null,
+        status: 'scheduled' as const,
+      };
+      await createMeeting.mutateAsync(payload);
+      setShowMeetingForm(false);
+    } catch (error) {
+      console.error('Error creating meeting:', error);
+      Alert.alert('Error', 'Failed to create meeting. Please try again.');
+    }
   };
 
-  const handleMeetingPress = (meeting: any) => {
+  const handleMeetingPress = (meeting: EnrichedMeeting) => {
     setSelectedMeeting(meeting);
     setShowMeetingDetail(true);
   };
 
   const handleSummaryUpdated = (meetingId: string, summary: string) => {
-    // In a real app, you'd want to update the meeting in your data
-    // For now, we'll just close the modal and rely on data refetching
-    setShowMeetingDetail(false);
-    setSelectedMeeting(null);
+    // Update the selected meeting with the new summary
+    if (selectedMeeting) {
+      setSelectedMeeting({
+        ...selectedMeeting,
+        summary: summary,
+      });
+    }
+    // Keep the modal open to show the updated summary
+  };
+
+  const handleMeetingUpdated = (updatedMeeting: EnrichedMeeting) => {
+    // Update the selected meeting with any changes
+    setSelectedMeeting(updatedMeeting);
   };
 
   const upcomingMeetings = useMemo(
@@ -82,6 +113,13 @@ export default function MeetingsScreen() {
         visible={showMeetingDetail}
         onClose={() => setShowMeetingDetail(false)}
         onSummaryUpdated={handleSummaryUpdated}
+        onMeetingUpdated={handleMeetingUpdated}
+      />
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
       />
 
       <SafeAreaView
@@ -92,7 +130,11 @@ export default function MeetingsScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Meetings</Text>
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={() => setShowMeetingForm((prev) => !prev)}
+            onPress={() => {
+              if (guardMeetingsAccess()) {
+                setShowMeetingForm((prev) => !prev);
+              }
+            }}
           >
             <Plus size={20} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
@@ -102,14 +144,6 @@ export default function MeetingsScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
-          {/* Voice Recorder for Meeting Summaries */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Record Meeting Summary
-            </Text>
-            <VoiceRecorder mode="summary" />
-          </View>
-
           {/* Upcoming Meetings */}
           {upcomingMeetings.length > 0 && (
             <View style={styles.section}>
@@ -119,22 +153,7 @@ export default function MeetingsScreen() {
               {upcomingMeetings.map((meeting) => (
                 <MeetingCard
                   key={meeting.id}
-                  meeting={{
-                    id: meeting.id,
-                    title: meeting.title,
-                    client: meeting.client_name || 'Unknown',
-                    date: meeting.start_time,
-                    duration: `${Math.max(
-                      1,
-                      Math.round(
-                        (new Date(meeting.end_time).getTime() -
-                          new Date(meeting.start_time).getTime()) /
-                          60000
-                      )
-                    )} min`,
-                    summary: meeting.summary || '',
-                    status: 'upcoming',
-                  }}
+                  meeting={meeting}
                   onPress={handleMeetingPress}
                 />
               ))}
@@ -149,22 +168,7 @@ export default function MeetingsScreen() {
             {pastMeetings.map((meeting) => (
               <MeetingCard
                 key={meeting.id}
-                meeting={{
-                  id: meeting.id,
-                  title: meeting.title,
-                  client: meeting.client_name || 'Unknown',
-                  date: meeting.start_time,
-                  duration: `${Math.max(
-                    1,
-                    Math.round(
-                      (new Date(meeting.end_time).getTime() -
-                        new Date(meeting.start_time).getTime()) /
-                        60000
-                    )
-                  )} min`,
-                  summary: meeting.summary || '',
-                  status: 'completed',
-                }}
+                meeting={meeting}
                 onPress={handleMeetingPress}
               />
             ))}

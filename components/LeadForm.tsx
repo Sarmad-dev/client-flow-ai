@@ -10,7 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { MapView, Marker, Region } from './PlatformMapView';
+import { MapView, Marker } from './PlatformMapView';
 import * as Location from 'expo-location';
 import { X, Building, Search, Map, User, Star } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -18,6 +18,8 @@ import { searchPlaces, getPlaceDetails, PlaceResult } from '@/lib/maps';
 import { useForm, Controller } from 'react-hook-form';
 import { LeadFormData, leadSchema } from '@/lib/validation';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Region } from 'react-native-maps';
 
 interface LeadFormProps {
   visible: boolean;
@@ -25,10 +27,17 @@ interface LeadFormProps {
   onSubmit: (
     form: LeadFormData & { selectedPlace: PlaceResult | null }
   ) => Promise<void> | void;
+  initialData?: Partial<LeadFormData>;
 }
 
-export function LeadForm({ visible, onClose, onSubmit }: LeadFormProps) {
+export function LeadForm({
+  visible,
+  onClose,
+  onSubmit,
+  initialData,
+}: LeadFormProps) {
   const { colors } = useTheme();
+  const { canCreateLead } = useSubscription();
 
   const {
     control,
@@ -40,14 +49,14 @@ export function LeadForm({ visible, onClose, onSubmit }: LeadFormProps) {
   } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
     defaultValues: {
-      name: '',
-      company: '',
-      email: '',
-      phone: '',
-      address: '',
-      website: '',
-      businessType: '',
-      notes: '',
+      name: initialData?.name || '',
+      company: initialData?.company || '',
+      email: initialData?.email || '',
+      phone: initialData?.phone || '',
+      address: initialData?.address || '',
+      website: initialData?.website || '',
+      businessType: initialData?.businessType || '',
+      notes: initialData?.notes || '',
     },
   });
 
@@ -65,6 +74,10 @@ export function LeadForm({ visible, onClose, onSubmit }: LeadFormProps) {
   const [isCreating, setIsCreating] = useState(false);
 
   const submitForm = async (data: LeadFormData) => {
+    if (!canCreateLead()) {
+      Alert.alert('Error', 'You have reached the maximum number of leads');
+      return;
+    }
     console.log('data', data);
     if (!data.name?.trim() && !data.company?.trim()) {
       Alert.alert(

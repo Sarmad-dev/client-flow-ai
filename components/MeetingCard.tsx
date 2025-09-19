@@ -9,33 +9,76 @@ import {
   MoveVertical as MoreVertical,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-interface Meeting {
-  id: string;
-  title: string;
-  client: string;
-  date: string;
-  duration: string;
-  summary: string;
-  status: 'upcoming' | 'completed';
-}
+import { EnrichedMeeting } from '@/hooks/useMeetings';
 
 interface MeetingCardProps {
-  meeting: Meeting;
-  onPress?: (meeting: Meeting) => void; // Add onPress callback
+  meeting: EnrichedMeeting;
+  onPress?: (meeting: EnrichedMeeting) => void; // Add onPress callback
 }
 
 export function MeetingCard({ meeting, onPress }: MeetingCardProps) {
   const { colors } = useTheme();
 
-  const isUpcoming = meeting.status === 'upcoming';
+  // Helper function to safely parse dates
+  const parseDate = (dateString: string): Date => {
+    if (!dateString) return new Date();
+
+    let date = new Date(dateString);
+
+    if (isNaN(date.getTime())) {
+      date = new Date(dateString + 'Z');
+    }
+
+    if (isNaN(date.getTime())) {
+      const timestamp = parseInt(dateString);
+      if (!isNaN(timestamp)) {
+        date = new Date(timestamp);
+      }
+    }
+
+    if (isNaN(date.getTime())) {
+      const dateWithOffset = dateString.replace(
+        /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/,
+        '$1Z'
+      );
+      date = new Date(dateWithOffset);
+    }
+
+    if (isNaN(date.getTime())) {
+      return new Date();
+    }
+
+    return date;
+  };
+
+  // Calculate duration from start and end times
+  const getDuration = () => {
+    const startDate = parseDate(meeting.start_time);
+    const endDate = parseDate(meeting.end_time);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return 'Unknown';
+    }
+    const duration = Math.max(
+      1,
+      Math.round((endDate.getTime() - startDate.getTime()) / 60000)
+    );
+    return `${duration} min`;
+  };
+
+  // Determine if meeting is upcoming based on current time
+  const isUpcoming = () => {
+    if (meeting.status === 'completed') return false;
+    const now = new Date();
+    const startTime = parseDate(meeting.start_time);
+    return !isNaN(startTime.getTime()) && startTime > now;
+  };
 
   return (
     <TouchableOpacity
       style={[
         styles.container,
         { backgroundColor: colors.surface },
-        isUpcoming && { borderLeftColor: colors.primary, borderLeftWidth: 4 },
+        isUpcoming() && { borderLeftColor: colors.primary, borderLeftWidth: 4 },
       ]}
       onPress={() => onPress?.(meeting)}
     >
@@ -51,7 +94,7 @@ export function MeetingCard({ meeting, onPress }: MeetingCardProps) {
               <Text
                 style={[styles.metadataText, { color: colors.textSecondary }]}
               >
-                {meeting.client}
+                {meeting.client_name || 'No Client'}
               </Text>
             </View>
 
@@ -64,7 +107,7 @@ export function MeetingCard({ meeting, onPress }: MeetingCardProps) {
               <Text
                 style={[styles.metadataText, { color: colors.textSecondary }]}
               >
-                {new Date(meeting.date).toLocaleDateString()}
+                {parseDate(meeting.start_time).toLocaleDateString()}
               </Text>
             </View>
 
@@ -73,7 +116,7 @@ export function MeetingCard({ meeting, onPress }: MeetingCardProps) {
               <Text
                 style={[styles.metadataText, { color: colors.textSecondary }]}
               >
-                {meeting.duration}
+                {getDuration()}
               </Text>
             </View>
           </View>

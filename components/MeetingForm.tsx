@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { X, Calendar, Clock, User, MapPin, Video } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -19,6 +20,16 @@ interface MeetingFormProps {
   onClose: () => void;
   onSubmit: (meeting: any) => void;
   clients: Array<{ id: string; name: string; company: string }>;
+  initialData?: {
+    title?: string;
+    description?: string;
+    selectedClient?: string;
+    startDate?: Date;
+    endDate?: Date;
+    location?: string;
+    meetingType?: 'in-person' | 'video' | 'phone';
+    agenda?: string;
+  };
 }
 
 export function MeetingForm({
@@ -26,24 +37,45 @@ export function MeetingForm({
   onClose,
   onSubmit,
   clients,
+  initialData,
 }: MeetingFormProps) {
   const { colors } = useTheme();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string>('');
-  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [description, setDescription] = useState(
+    initialData?.description || ''
+  );
+  const [selectedClient, setSelectedClient] = useState<string>(
+    initialData?.selectedClient || ''
+  );
+  const [startDate, setStartDate] = useState<Date>(
+    initialData?.startDate || new Date()
+  );
   const [endDate, setEndDate] = useState<Date>(
-    new Date(Date.now() + 60 * 60 * 1000)
+    initialData?.endDate || new Date(Date.now() + 60 * 60 * 1000)
   ); // 1 hour later
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState(initialData?.location || '');
   const [meetingType, setMeetingType] = useState<
     'in-person' | 'video' | 'phone'
-  >('video');
-  const [agenda, setAgenda] = useState('');
+  >(initialData?.meetingType || 'video');
+  const [agenda, setAgenda] = useState(initialData?.agenda || '');
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showClientPicker, setShowClientPicker] = useState(false);
   const [addToCalendar, setAddToCalendar] = useState(true);
+
+  // Update form state when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title || '');
+      setDescription(initialData.description || '');
+      setSelectedClient(initialData.selectedClient || '');
+      setStartDate(initialData.startDate || new Date());
+      setEndDate(initialData.endDate || new Date(Date.now() + 60 * 60 * 1000));
+      setLocation(initialData.location || '');
+      setMeetingType(initialData.meetingType || 'video');
+      setAgenda(initialData.agenda || '');
+    }
+  }, [initialData]);
 
   const meetingTypes = [
     { value: 'video', label: 'Video Call', icon: Video },
@@ -67,26 +99,35 @@ export function MeetingForm({
       return;
     }
 
-    const meeting = {
-      id: Date.now().toString(),
+    const meetingData = {
       title: title.trim(),
       description: description.trim(),
       clientId: selectedClient,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: startDate,
+      endDate: endDate,
       location: location.trim(),
-      type: meetingType,
+      meetingType: meetingType,
       agenda: agenda.trim(),
-      status: 'upcoming',
-      createdAt: new Date().toISOString(),
     };
 
     // Add to Google Calendar if enabled
     if (addToCalendar) {
-      await addToGoogleCalendar(meeting);
+      await addToGoogleCalendar({
+        id: Date.now().toString(),
+        title: title.trim(),
+        description: description.trim(),
+        clientId: selectedClient,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        location: location.trim(),
+        type: meetingType,
+        agenda: agenda.trim(),
+        status: 'upcoming',
+        createdAt: new Date().toISOString(),
+      });
     }
 
-    onSubmit(meeting);
+    onSubmit(meetingData);
     resetForm();
     onClose();
   };
@@ -117,20 +158,124 @@ export function MeetingForm({
   };
 
   const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setSelectedClient('');
-    setStartDate(new Date());
-    setEndDate(new Date(Date.now() + 60 * 60 * 1000));
-    setLocation('');
-    setMeetingType('video');
-    setAgenda('');
+    if (initialData) {
+      setTitle(initialData.title || '');
+      setDescription(initialData.description || '');
+      setSelectedClient(initialData.selectedClient || '');
+      setStartDate(initialData.startDate || new Date());
+      setEndDate(initialData.endDate || new Date(Date.now() + 60 * 60 * 1000));
+      setLocation(initialData.location || '');
+      setMeetingType(initialData.meetingType || 'video');
+      setAgenda(initialData.agenda || '');
+    } else {
+      // Reset to default values if no initialData
+      setTitle('');
+      setDescription('');
+      setSelectedClient('');
+      setStartDate(new Date());
+      setEndDate(new Date(Date.now() + 60 * 60 * 1000));
+      setLocation('');
+      setMeetingType('video');
+      setAgenda('');
+    }
   };
 
   const selectedClientData = clients.find((c) => c.id === selectedClient);
 
   return (
     <>
+      {/* Client Picker Sheet - Full Screen Modal */}
+      <Modal
+        visible={showClientPicker}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowClientPicker(false)}
+      >
+        <SafeAreaView
+          style={[
+            styles.pickerFullScreen,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <View style={styles.pickerHeader}>
+            <Text style={[styles.pickerTitle, { color: colors.text }]}>
+              Select Client
+            </Text>
+            <TouchableOpacity onPress={() => setShowClientPicker(false)}>
+              <X size={24} color={colors.text} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            style={styles.clientList}
+            showsVerticalScrollIndicator={false}
+          >
+            {clients.length > 0 ? (
+              clients.map((client) => (
+                <TouchableOpacity
+                  key={client.id}
+                  style={[
+                    styles.clientOption,
+                    { backgroundColor: colors.surface },
+                    selectedClient === client.id && {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedClient(client.id);
+                    setShowClientPicker(false);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.clientAvatar,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <User size={16} color="#FFFFFF" strokeWidth={2} />
+                  </View>
+                  <View style={styles.clientInfo}>
+                    <Text
+                      style={[
+                        styles.clientName,
+                        {
+                          color:
+                            selectedClient === client.id
+                              ? '#FFFFFF'
+                              : colors.text,
+                        },
+                      ]}
+                    >
+                      {client.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.clientCompany,
+                        {
+                          color:
+                            selectedClient === client.id
+                              ? '#FFFFFF'
+                              : colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {client.company}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
+                  No clients found. Please add clients first.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       <Modal
         visible={visible}
         transparent
@@ -478,94 +623,6 @@ export function MeetingForm({
           </View>
         </View>
       </Modal>
-
-      {/* Client Picker Sheet - Rendered outside main modal */}
-      {showClientPicker && (
-        <Modal
-          visible={showClientPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowClientPicker(false)}
-        >
-          <View style={styles.pickerModalOverlay}>
-            <TouchableOpacity
-              style={styles.pickerBackdrop}
-              activeOpacity={1}
-              onPress={() => setShowClientPicker(false)}
-            />
-            <View
-              style={[
-                styles.pickerModal,
-                { backgroundColor: colors.background },
-              ]}
-            >
-              <View style={styles.pickerHeader}>
-                <Text style={[styles.pickerTitle, { color: colors.text }]}>
-                  Select Client
-                </Text>
-                <TouchableOpacity onPress={() => setShowClientPicker(false)}>
-                  <X size={24} color={colors.text} strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.clientList}>
-                {clients.map((client) => (
-                  <TouchableOpacity
-                    key={client.id}
-                    style={[
-                      styles.clientOption,
-                      { backgroundColor: colors.surface },
-                      selectedClient === client.id && {
-                        backgroundColor: colors.primary,
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedClient(client.id);
-                      setShowClientPicker(false);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.clientAvatar,
-                        { backgroundColor: colors.primary },
-                      ]}
-                    >
-                      <User size={16} color="#FFFFFF" strokeWidth={2} />
-                    </View>
-                    <View style={styles.clientInfo}>
-                      <Text
-                        style={[
-                          styles.clientName,
-                          {
-                            color:
-                              selectedClient === client.id
-                                ? '#FFFFFF'
-                                : colors.text,
-                          },
-                        ]}
-                      >
-                        {client.name}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.clientCompany,
-                          {
-                            color:
-                              selectedClient === client.id
-                                ? '#FFFFFF'
-                                : colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        {client.company}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      )}
     </>
   );
 }
@@ -703,35 +760,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  pickerModalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-    zIndex: 1000,
-  },
-  pickerBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  pickerModal: {
-    maxHeight: '70%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 20,
+  pickerFullScreen: {
+    flex: 1,
   },
   pickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   pickerTitle: {
     fontSize: 20,
@@ -740,6 +779,7 @@ const styles = StyleSheet.create({
   clientList: {
     flex: 1,
     paddingHorizontal: 24,
+    paddingTop: 20,
   },
   clientOption: {
     flexDirection: 'row',
@@ -767,5 +807,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
     marginTop: 2,
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '400',
+    textAlign: 'center',
   },
 });

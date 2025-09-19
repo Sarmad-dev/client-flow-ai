@@ -27,10 +27,12 @@ import {
   FileText,
   Target,
   TrendingUp,
+  Edit,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { LeadEditModal } from '@/components/leads/LeadEditModal';
 
 interface LeadDetailViewProps {
   visible: boolean;
@@ -52,6 +54,7 @@ export function LeadDetailView({
   const [lead, setLead] = useState<any>(null);
   const [interactions, setInteractions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (visible && leadId) {
@@ -261,7 +264,12 @@ export function LeadDetailView({
           <Text style={[styles.title, { color: colors.text }]}>
             Lead Details
           </Text>
-          <View style={styles.headerSpacer} />
+          <TouchableOpacity
+            style={[styles.editButton, { backgroundColor: colors.primary }]}
+            onPress={() => setShowEditModal(true)}
+          >
+            <Edit size={18} color="#FFFFFF" strokeWidth={2} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -594,6 +602,18 @@ export function LeadDetailView({
             )}
           </View>
         </ScrollView>
+
+        {/* Edit Modal */}
+        <LeadEditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          lead={lead}
+          onUpdated={(updatedLead) => {
+            setLead(updatedLead);
+            setShowEditModal(false);
+            onLeadUpdated();
+          }}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -627,8 +647,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  headerSpacer: {
-    width: 32,
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,

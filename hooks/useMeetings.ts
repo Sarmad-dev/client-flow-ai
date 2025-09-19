@@ -15,6 +15,7 @@ export interface MeetingRecord {
   agenda: string | null;
   summary: string | null;
   status: 'scheduled' | 'completed' | 'cancelled';
+  voice_recording_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,10 +77,33 @@ export function useCreateMeeting() {
         agenda: payload.agenda ?? null,
         summary: payload.summary ?? null,
         status: payload.status ?? 'scheduled',
+        voice_recording_id: payload.voice_recording_id ?? null,
       };
       const { data, error } = await supabase
         .from('meetings')
         .insert(insertPayload)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as MeetingRecord;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: meetingKeys.all as any });
+    },
+  });
+}
+
+export function useUpdateMeeting() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      payload: { id: string } & Partial<MeetingRecord>
+    ): Promise<MeetingRecord> => {
+      const { id, ...updateData } = payload;
+      const { data, error } = await supabase
+        .from('meetings')
+        .update(updateData)
+        .eq('id', id)
         .select()
         .single();
       if (error) throw error;

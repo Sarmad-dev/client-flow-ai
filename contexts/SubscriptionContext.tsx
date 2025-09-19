@@ -5,11 +5,9 @@ import Purchases, {
   PurchasesPackage,
 } from 'react-native-purchases';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  SubscriptionPlan,
-  UserSubscription,
-  SubscriptionLimits,
-} from '../types/subscription';
+import { UserSubscription, SubscriptionLimits } from '../types/subscription';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SubscriptionContextType {
   userSubscription: UserSubscription;
@@ -26,6 +24,7 @@ interface SubscriptionContextType {
   canAccessMeetings: () => boolean;
   canAccessAnalytics: () => boolean;
   incrementUsage: (type: 'leads' | 'clients' | 'emailsSent') => Promise<void>;
+  syncUsageWithDatabase: (userId: string) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(
@@ -71,11 +70,29 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [currentOffering, setCurrentOffering] =
     useState<PurchasesOffering | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     initializeRevenueCat();
-    loadSubscriptionFromStorage();
+    // Prefer loading from Supabase if logged in
+    (async () => {
+      if (user?.id) {
+        await loadSubscriptionFromDatabase(user.id);
+      } else {
+        await loadSubscriptionFromStorage();
+      }
+    })();
   }, []);
+
+  useEffect(() => {
+    // When auth user changes, refresh subscription state from DB
+    (async () => {
+      if (user?.id) {
+        await loadSubscriptionFromDatabase(user.id);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const initializeRevenueCat = async () => {
     try {
@@ -122,6 +139,113 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const loadSubscriptionFromDatabase = async (userId: string) => {
+    try {
+      const [subscriptionResult, leadsResult, clientsResult, emailsResult] =
+        await Promise.all([
+          supabase
+            .from('subscriptions')
+            .select('plan, is_active')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase
+            .from('leads')
+            .select('id', { count: 'exact' })
+            .eq('user_id', userId),
+          supabase
+            .from('clients')
+            .select('id', { count: 'exact' })
+            .eq('user_id', userId),
+          supabase
+            .from('email_communications')
+            .select('id', { count: 'exact' })
+            .eq('user_id', userId),
+        ]);
+
+      const { data: subscriptionData, error: subscriptionError } =
+        subscriptionResult;
+      const { count: leadsCount } = leadsResult;
+      const { count: clientsCount } = clientsResult;
+      const { count: emailsCount } = emailsResult;
+
+      if (subscriptionError) throw subscriptionError;
+
+      const actualUsage = {
+        leads: leadsCount || 0,
+        clients: clientsCount || 0,
+        emailsSent: emailsCount || 0, // You might want to count emails from a separate table
+      };
+
+      if (subscriptionData) {
+        const fromDb: UserSubscription = {
+          plan: subscriptionData.plan === 'pro' ? 'pro' : 'free',
+          isActive: !!subscriptionData.is_active,
+          currentUsage: actualUsage,
+        };
+
+        setUserSubscription(fromDb);
+        await saveSubscriptionToStorage(fromDb);
+      } else {
+        // No subscription record found, use default with actual usage
+        const defaultWithUsage: UserSubscription = {
+          ...DEFAULT_SUBSCRIPTION,
+          currentUsage: actualUsage,
+        };
+        setUserSubscription(defaultWithUsage);
+        await saveSubscriptionToStorage(defaultWithUsage);
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to load subscription from database:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const upsertSubscriptionToDatabase = async (
+    userId: string,
+    params: {
+      plan: 'free' | 'pro';
+      isActive: boolean;
+      rc?: {
+        entitlement?: string;
+        originalAppUserId?: string | null;
+        latestExpirationAt?: string | null;
+        platform?: 'ios' | 'android' | 'web' | null;
+        productIdentifier?: string | null;
+        periodType?: string | null;
+        isSandbox?: boolean | null;
+      };
+    }
+  ) => {
+    try {
+      const payload: any = {
+        user_id: userId,
+        plan: params.plan,
+        is_active: params.isActive,
+      };
+      if (params.rc) {
+        payload.rc_entitlement = params.rc.entitlement ?? null;
+        payload.rc_original_app_user_id = params.rc.originalAppUserId ?? null;
+        payload.rc_latest_expiration_at = params.rc.latestExpirationAt
+          ? new Date(params.rc.latestExpirationAt).toISOString()
+          : null;
+        payload.rc_platform = params.rc.platform ?? null;
+        payload.rc_product_identifier = params.rc.productIdentifier ?? null;
+        payload.rc_period_type = params.rc.periodType ?? null;
+        payload.rc_is_sandbox = params.rc.isSandbox ?? null;
+      }
+      const { error } = await supabase
+        .from('subscriptions')
+        .upsert(payload, { onConflict: 'user_id' })
+        .eq('user_id', userId);
+      if (error) throw error;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to upsert subscription to database:', error);
+    }
+  };
+
   const checkSubscriptionStatus = async () => {
     try {
       const customerInfo = await Purchases.getCustomerInfo();
@@ -135,6 +259,30 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setUserSubscription(newSubscription);
       await saveSubscriptionToStorage(newSubscription);
+      if (user?.id) {
+        await upsertSubscriptionToDatabase(user.id, {
+          plan: newSubscription.plan,
+          isActive: newSubscription.isActive,
+          rc: {
+            entitlement: isPro ? 'pro' : undefined,
+            originalAppUserId: customerInfo.originalAppUserId ?? null,
+            latestExpirationAt: customerInfo.latestExpirationDate
+              ? new Date(customerInfo.latestExpirationDate).toISOString()
+              : null,
+            productIdentifier:
+              (customerInfo as any)?.activeSubscriptions?.[0] ?? null,
+            periodType: (customerInfo as any)?.entitlements?.all?.pro
+              ?.latestPurchaseDate
+              ? 'normal'
+              : null,
+            isSandbox:
+              (customerInfo as any)?.nonSubscriptionTransactions?.some?.(
+                () => false
+              ) ?? null,
+            platform: null,
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to check subscription status:', error);
     }
@@ -160,6 +308,22 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
         };
         setUserSubscription(newSubscription);
         await saveSubscriptionToStorage(newSubscription);
+        if (user?.id) {
+          await upsertSubscriptionToDatabase(user.id, {
+            plan: 'pro',
+            isActive: true,
+            rc: {
+              entitlement: 'pro',
+              originalAppUserId:
+                (await Purchases.getAppUserID()) as unknown as string,
+              latestExpirationAt: null,
+              platform: null,
+              productIdentifier: pkg.product.identifier,
+              periodType: (pkg as any)?.packageType ?? null,
+              isSandbox: null,
+            },
+          });
+        }
         return true;
       }
       return false;
@@ -182,6 +346,30 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setUserSubscription(newSubscription);
       await saveSubscriptionToStorage(newSubscription);
+      if (user?.id) {
+        await upsertSubscriptionToDatabase(user.id, {
+          plan: newSubscription.plan,
+          isActive: newSubscription.isActive,
+          rc: {
+            entitlement: isPro ? 'pro' : undefined,
+            originalAppUserId: customerInfo.originalAppUserId ?? null,
+            latestExpirationAt: customerInfo.latestExpirationDate
+              ? new Date(customerInfo.latestExpirationDate).toISOString()
+              : null,
+            productIdentifier:
+              (customerInfo as any)?.activeSubscriptions?.[0] ?? null,
+            periodType: (customerInfo as any)?.entitlements?.all?.pro
+              ?.latestPurchaseDate
+              ? 'normal'
+              : null,
+            isSandbox:
+              (customerInfo as any)?.nonSubscriptionTransactions?.some?.(
+                () => false
+              ) ?? null,
+            platform: null,
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to restore purchases:', error);
     }
@@ -243,6 +431,38 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     await saveSubscriptionToStorage(newSubscription);
   };
 
+  const syncUsageWithDatabase = async (userId: string) => {
+    try {
+      // Count actual records in database
+      const [leadsResult, clientsResult] = await Promise.all([
+        supabase
+          .from('leads')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId),
+        supabase
+          .from('clients')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId),
+      ]);
+
+      const actualUsage = {
+        leads: leadsResult.count || 0,
+        clients: clientsResult.count || 0,
+        emailsSent: userSubscription.currentUsage.emailsSent, // Keep existing email count
+      };
+
+      const syncedSubscription = {
+        ...userSubscription,
+        currentUsage: actualUsage,
+      };
+
+      setUserSubscription(syncedSubscription);
+      await saveSubscriptionToStorage(syncedSubscription);
+    } catch (error) {
+      console.error('Failed to sync usage with database:', error);
+    }
+  };
+
   const value: SubscriptionContextType = {
     userSubscription,
     isLoading,
@@ -258,6 +478,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     canAccessMeetings,
     canAccessAnalytics,
     incrementUsage,
+    syncUsageWithDatabase,
   };
 
   return (

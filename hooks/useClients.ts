@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export interface ClientRecord {
   id: string;
@@ -66,6 +67,7 @@ export function useClient(id?: string) {
 export function useCreateClient() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { incrementUsage } = useSubscription();
   const userId = user?.id;
 
   return useMutation({
@@ -93,6 +95,29 @@ export function useCreateClient() {
           notes: payload.notes ?? null,
           last_contact_date: payload.last_contact_date ?? null,
         })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as ClientRecord;
+    },
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: clientsKeys.all as any });
+      await incrementUsage('clients');
+    },
+  });
+}
+
+export function useUpdateClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      payload: { id: string } & Partial<ClientRecord>
+    ): Promise<ClientRecord> => {
+      const { id, ...updateData } = payload;
+      const { data, error } = await supabase
+        .from('clients')
+        .update(updateData)
+        .eq('id', id)
         .select()
         .single();
       if (error) throw error;

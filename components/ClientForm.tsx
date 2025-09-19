@@ -24,25 +24,40 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { searchPlaces as searchPlacesApi, PlaceResult } from '@/lib/maps';
+import { useCreateClient } from '@/hooks/useClients';
 
 interface ClientFormProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (client: any) => void;
+  initialData?: {
+    name?: string;
+    company?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    notes?: string;
+  };
 }
 
 // Using PlaceResult type from lib/maps
 
-export function ClientForm({ visible, onClose, onSubmit }: ClientFormProps) {
+export function ClientForm({
+  visible,
+  onClose,
+  onSubmit,
+  initialData,
+}: ClientFormProps) {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const createClient = useCreateClient();
   const [mode, setMode] = useState<'manual' | 'map'>('manual');
-  const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
+  const [name, setName] = useState(initialData?.name || '');
+  const [company, setCompany] = useState(initialData?.company || '');
+  const [email, setEmail] = useState(initialData?.email || '');
+  const [phone, setPhone] = useState(initialData?.phone || '');
+  const [address, setAddress] = useState(initialData?.address || '');
+  const [notes, setNotes] = useState(initialData?.notes || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [mapRegion, setMapRegion] = useState<Region>({
     latitude: 37.7749,
@@ -70,29 +85,22 @@ export function ClientForm({ visible, onClose, onSubmit }: ClientFormProps) {
 
     try {
       const clientData = {
-        user_id: user?.id,
         name: name.trim(),
         company: company.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
+        email: email.trim() || null,
+        phone: phone.trim() || null,
         address: selectedPlace
           ? selectedPlace.formatted_address
-          : address.trim(),
+          : address.trim() || null,
         location_lat: selectedPlace?.geometry.location.lat || null,
         location_lng: selectedPlace?.geometry.location.lng || null,
         google_place_id: selectedPlace?.place_id || null,
-        notes: notes.trim(),
-        status: 'prospect',
+        notes: notes.trim() || null,
+        status: 'prospect' as const,
         last_contact_date: new Date().toISOString(),
       };
 
-      const { data: client, error } = await supabase
-        .from('clients')
-        .insert(clientData)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const client = await createClient.mutateAsync(clientData);
 
       Alert.alert('Success', 'Client created successfully!');
       onSubmit(client);
@@ -107,12 +115,12 @@ export function ClientForm({ visible, onClose, onSubmit }: ClientFormProps) {
   };
 
   const resetForm = () => {
-    setName('');
-    setCompany('');
-    setEmail('');
-    setPhone('');
-    setAddress('');
-    setNotes('');
+    setName(initialData?.name || '');
+    setCompany(initialData?.company || '');
+    setEmail(initialData?.email || '');
+    setPhone(initialData?.phone || '');
+    setAddress(initialData?.address || '');
+    setNotes(initialData?.notes || '');
     setSelectedPlace(null);
     setSearchQuery('');
     setSearchResults([]);

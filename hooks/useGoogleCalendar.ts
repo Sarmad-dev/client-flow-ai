@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import * as Crypto from 'expo-crypto';
 
 // Ensure redirect can close properly
 WebBrowser.maybeCompleteAuthSession();

@@ -27,6 +27,14 @@ interface TaskFormProps {
   onClose: () => void;
   onSubmit: (task: any) => void;
   clients: Array<{ id: string; name: string; company: string }>;
+  initialData?: {
+    title?: string;
+    description?: string;
+    selectedClient?: string;
+    dueDate?: Date;
+    selectedTag?: string;
+    priority?: 'low' | 'medium' | 'high';
+  };
 }
 
 export function TaskForm({
@@ -34,16 +42,27 @@ export function TaskForm({
   onClose,
   onSubmit,
   clients,
+  initialData,
 }: TaskFormProps) {
   console.log('TaskForm visible:', visible);
   const { user } = useAuth();
   const { colors } = useTheme();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string>('');
-  const [dueDate, setDueDate] = useState<Date>(new Date());
-  const [selectedTag, setSelectedTag] = useState('follow-up');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [description, setDescription] = useState(
+    initialData?.description || ''
+  );
+  const [selectedClient, setSelectedClient] = useState<string>(
+    initialData?.selectedClient || ''
+  );
+  const [dueDate, setDueDate] = useState<Date>(
+    initialData?.dueDate || new Date()
+  );
+  const [selectedTag, setSelectedTag] = useState(
+    initialData?.selectedTag || 'follow-up'
+  );
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(
+    initialData?.priority || 'medium'
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showClientPicker, setShowClientPicker] = useState(false);
   const [addToCalendar, setAddToCalendar] = useState(true);
@@ -138,12 +157,12 @@ export function TaskForm({
   };
 
   const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setSelectedClient('');
-    setDueDate(new Date());
-    setSelectedTag('follow-up');
-    setPriority('medium');
+    setTitle(initialData?.title || '');
+    setDescription(initialData?.description || '');
+    setSelectedClient(initialData?.selectedClient || '');
+    setDueDate(initialData?.dueDate || new Date());
+    setSelectedTag(initialData?.selectedTag || 'follow-up');
+    setPriority(initialData?.priority || 'medium');
   };
 
   const selectedClientData = clients.find((c) => c.id === selectedClient);

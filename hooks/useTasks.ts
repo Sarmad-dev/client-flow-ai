@@ -12,6 +12,9 @@ export interface TaskRecord {
   priority: 'low' | 'medium' | 'high';
   tag: 'follow-up' | 'proposal' | 'meeting' | 'call' | 'research' | 'design';
   due_date: string | null;
+  voice_recording_id: string | null;
+  ai_generated: boolean;
+  ai_confidence_score: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +67,9 @@ export function useCreateTask() {
           tag: (payload.tag ?? 'follow-up') as TaskRecord['tag'],
           status: (payload.status ?? 'pending') as TaskRecord['status'],
           priority: (payload.priority ?? 'medium') as TaskRecord['priority'],
+          voice_recording_id: payload.voice_recording_id ?? null,
+          ai_generated: payload.ai_generated ?? false,
+          ai_confidence_score: payload.ai_confidence_score ?? null,
         })
         .select()
         .single();
@@ -92,14 +98,33 @@ export function useToggleTaskStatus() {
   });
 }
 
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      payload: { id: string } & Partial<TaskRecord>
+    ): Promise<TaskRecord> => {
+      const { id, ...updateData } = payload;
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as TaskRecord;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.all as any });
+    },
+  });
+}
+
 export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (taskId: string) => {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
+      const { error } = await supabase.from('tasks').delete().eq('id', taskId);
       if (error) throw error;
     },
     onSuccess: () => {

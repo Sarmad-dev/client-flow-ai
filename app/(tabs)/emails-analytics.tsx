@@ -12,10 +12,19 @@ import { useTheme } from '@/hooks/useTheme';
 import { useEmailStats, useEmailActivity } from '@/hooks/useEmails';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 export default function EmailsAnalyticsScreen() {
   const { colors } = useTheme();
   const { data: stats } = useEmailStats();
+
+  const {
+    guardAnalyticsAccess,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
   const [range, setRange] = useState<'7d' | '14d' | '30d' | 'custom'>('7d');
   const startOfDay = (d: Date) => new Date(new Date(d).setHours(0, 0, 0, 0));
   const endOfDay = (d: Date) => new Date(new Date(d).setHours(23, 59, 59, 999));
@@ -97,6 +106,44 @@ export default function EmailsAnalyticsScreen() {
     const max = Math.max(1, ...d.map((x) => x.value));
     return { d, max };
   }, [stats]);
+
+  // Check if user has access to analytics
+  if (!guardAnalyticsAccess()) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 24,
+          }}
+        >
+          <Text
+            style={[styles.title, { color: colors.text, textAlign: 'center' }]}
+          >
+            Analytics Access Required
+          </Text>
+          <Text
+            style={{
+              color: colors.textSecondary,
+              textAlign: 'center',
+              marginTop: 8,
+            }}
+          >
+            Upgrade to Pro to access email analytics and insights.
+          </Text>
+        </View>
+        <SubscriptionModal
+          visible={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          featureName={modalFeatureName}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -422,6 +469,12 @@ export default function EmailsAnalyticsScreen() {
           )}
         </View>
       </ScrollView>
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </SafeAreaView>
   );
 }

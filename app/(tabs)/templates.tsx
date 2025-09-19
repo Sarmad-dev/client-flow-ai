@@ -19,11 +19,20 @@ import {
   actions,
 } from 'react-native-pell-rich-editor';
 import { Platform } from 'react-native';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 export default function TemplatesScreen() {
   const { colors } = useTheme();
   const { data: templates } = useEmailTemplates();
   const upsert = useUpsertEmailTemplate();
+
+  const {
+    guardEmailAccess,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -38,6 +47,7 @@ export default function TemplatesScreen() {
 
   const handleSave = async () => {
     if (!name) return;
+    if (!guardEmailAccess()) return;
     const cleanedTextFromHtml = (html: string) =>
       html
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -333,6 +343,12 @@ export default function TemplatesScreen() {
           </View>
         ))}
       </ScrollView>
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </SafeAreaView>
   );
 }

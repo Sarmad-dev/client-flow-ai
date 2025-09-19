@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Client Flow AI",
+    "name": "NexaSuit",
     "slug": "client-flow-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "clientflowai",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "jsEngine": "jsc",
+    "newArchEnabled": false,
+    "jsEngine": "hermes",
     "ios": {
       "supportsTablet": true
     },
@@ -30,7 +30,7 @@
     },
     "owner": "sarmad_khan2694",
     "android": {
-      "package": "com.sarmad_khan2694.clientflowai"
+      "package": "com.sarmad_khan2694.nexasuit"
     }
   }
 }
