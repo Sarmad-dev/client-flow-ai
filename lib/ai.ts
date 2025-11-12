@@ -346,3 +346,1317 @@ ${transcription}
     return safe.length > 1200 ? safe.slice(0, 1200) + '…' : safe;
   }
 }
+
+// Task Suggestion and Intelligence Functions
+
+export interface TaskSuggestionContext {
+  tasks: any[];
+  completedTasks: any[];
+  userId: string;
+}
+
+export interface TaskSuggestion {
+  id: string;
+  type: 'priority' | 'reschedule' | 'template' | 'dependency' | 'automation';
+  title: string;
+  description: string;
+  confidence: number;
+  task_id?: string;
+  suggested_action: {
+    type: string;
+    parameters: Record<string, any>;
+  };
+  created_at: string;
+  is_applied: boolean;
+}
+
+export interface TaskPrioritization {
+  task_id: string;
+  suggested_priority: 'low' | 'medium' | 'high' | 'urgent';
+  current_priority: 'low' | 'medium' | 'high' | 'urgent';
+  reason: string;
+  confidence: number;
+  factors: {
+    due_date_urgency: number;
+    dependency_impact: number;
+    client_importance: number;
+    historical_pattern: number;
+  };
+}
+
+export interface ReschedulingSuggestion {
+  task_id: string;
+  current_due_date: string | null;
+  suggested_due_date: string;
+  reason: string;
+  confidence: number;
+  suggested_actions: Array<{
+    type: 'reschedule' | 'break_down' | 'delegate' | 'cancel';
+    description: string;
+    parameters: Record<string, any>;
+  }>;
+}
+
+export async function generateTaskSuggestions(
+  context: TaskSuggestionContext
+): Promise<TaskSuggestion[]> {
+  try {
+    const { tasks, completedTasks, userId } = context;
+
+    // Analyze current task state
+    const activeTasks = tasks.filter((t) =>
+      ['pending', 'in_progress'].includes(t.status)
+    );
+    const overdueTasks = activeTasks.filter(
+      (t) => t.due_date && new Date(t.due_date) < new Date()
+    );
+
+    // Prepare context for AI analysis
+    const analysisContext = {
+      active_tasks_count: activeTasks.length,
+      overdue_tasks_count: overdueTasks.length,
+      completion_patterns: analyzeCompletionPatterns(completedTasks),
+      priority_distribution: analyzePriorityDistribution(activeTasks),
+      client_workload: analyzeClientWorkload(activeTasks),
+      recent_activity: analyzeRecentActivity(tasks),
+    };
+
+    const prompt = `You are an intelligent task management assistant. Analyze the user's current task situation and provide actionable suggestions to improve productivity and task management.
+
+Current Context:
+- Active tasks: ${analysisContext.active_tasks_count}
+- Overdue tasks: ${analysisContext.overdue_tasks_count}
+- Completion patterns: ${JSON.stringify(analysisContext.completion_patterns)}
+- Priority distribution: ${JSON.stringify(
+      analysisContext.priority_distribution
+    )}
+- Client workload: ${JSON.stringify(analysisContext.client_workload)}
+
+Based on this analysis, generate up to 5 intelligent suggestions. Each suggestion should be actionable and specific.
+
+Return a JSON array of suggestions with this structure:
+[
+  {
+    "id": "unique_id",
+    "type": "priority|reschedule|template|dependency|automation",
+    "title": "Brief suggestion title",
+    "description": "Detailed explanation of the suggestion",
+    "confidence": 0.8,
+    "task_id": "task_id_if_applicable",
+    "suggested_action": {
+      "type": "update_priority|reschedule|create_subtasks|add_dependency|use_template",
+      "parameters": {}
+    },
+    "created_at": "${new Date().toISOString()}",
+    "is_applied": false
+  }
+]
+
+Focus on:
+1. Prioritization improvements based on due dates and dependencies
+2. Rescheduling suggestions for overdue tasks
+3. Template recommendations for recurring patterns
+4. Dependency suggestions to improve workflow
+5. Automation opportunities to reduce manual work
+
+Return only valid JSON.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an intelligent task management assistant. Return only valid JSON arrays of task suggestions.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 1500,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return [];
+
+    // Parse and validate the response
+    let suggestions: TaskSuggestion[];
+    try {
+      const cleanContent = content.replace(/```json\s*|\s*```/g, '').trim();
+      suggestions = JSON.parse(cleanContent);
+    } catch (parseError) {
+      console.error('Failed to parse AI suggestions:', parseError);
+      return [];
+    }
+
+    // Add fallback suggestions based on heuristics
+    const heuristicSuggestions = generateHeuristicSuggestions(context);
+
+    return [...suggestions, ...heuristicSuggestions].slice(0, 8); // Limit to 8 suggestions
+  } catch (error) {
+    console.error('Task suggestions generation error:', error);
+    // Return heuristic-based suggestions as fallback
+    return generateHeuristicSuggestions(context);
+  }
+}
+
+export async function prioritizeTasks(
+  tasks: any[]
+): Promise<TaskPrioritization[]> {
+  try {
+    const activeTasks = tasks.filter((t) =>
+      ['pending', 'in_progress'].includes(t.status)
+    );
+
+    if (activeTasks.length === 0) return [];
+
+    const prioritizations: TaskPrioritization[] = [];
+
+    for (const task of activeTasks) {
+      const factors = calculatePriorityFactors(task, tasks);
+      const suggestedPriority = calculateSuggestedPriority(factors);
+
+      if (suggestedPriority !== task.priority) {
+        prioritizations.push({
+          task_id: task.id,
+          suggested_priority: suggestedPriority,
+          current_priority: task.priority,
+          reason: generatePriorityReason(factors, suggestedPriority),
+          confidence: calculatePriorityConfidence(factors),
+          factors,
+        });
+      }
+    }
+
+    return prioritizations.sort((a, b) => b.confidence - a.confidence);
+  } catch (error) {
+    console.error('Task prioritization error:', error);
+    return [];
+  }
+}
+
+export async function generateReschedulingSuggestions(
+  tasks: any[]
+): Promise<ReschedulingSuggestion[]> {
+  try {
+    const today = new Date();
+    const overdueTasks = tasks.filter(
+      (t) =>
+        t.due_date &&
+        new Date(t.due_date) < today &&
+        ['pending', 'in_progress'].includes(t.status)
+    );
+
+    const suggestions: ReschedulingSuggestion[] = [];
+
+    for (const task of overdueTasks) {
+      const daysPastDue = Math.floor(
+        (today.getTime() - new Date(task.due_date).getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      const suggestion = generateReschedulingSuggestion(task, daysPastDue);
+      suggestions.push(suggestion);
+    }
+
+    return suggestions.sort((a, b) => b.confidence - a.confidence);
+  } catch (error) {
+    console.error('Rescheduling suggestions error:', error);
+    return [];
+  }
+}
+
+export async function analyzeTaskPatterns(tasks: any[]): Promise<any> {
+  try {
+    const completedTasks = tasks.filter((t) => t.status === 'completed');
+
+    const patterns = {
+      completion_time_by_priority:
+        analyzeCompletionTimeByPriority(completedTasks),
+      most_productive_days: analyzeMostProductiveDays(completedTasks),
+      task_type_patterns: analyzeTaskTypePatterns(completedTasks),
+      client_patterns: analyzeClientPatterns(completedTasks),
+      seasonal_patterns: analyzeSeasonalPatterns(completedTasks),
+    };
+
+    return patterns;
+  } catch (error) {
+    console.error('Task pattern analysis error:', error);
+    return null;
+  }
+}
+
+// Helper functions for task analysis
+
+function analyzeCompletionPatterns(completedTasks: any[]) {
+  const totalTasks = completedTasks.length;
+  if (totalTasks === 0)
+    return { average_completion_days: 0, completion_rate: 0 };
+
+  const completionTimes = completedTasks
+    .filter((t) => t.created_at && t.updated_at)
+    .map((t) => {
+      const created = new Date(t.created_at);
+      const completed = new Date(t.updated_at);
+      return Math.floor(
+        (completed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
+      );
+    });
+
+  const averageCompletionDays =
+    completionTimes.length > 0
+      ? completionTimes.reduce((sum, days) => sum + days, 0) /
+        completionTimes.length
+      : 0;
+
+  return {
+    average_completion_days: Math.round(averageCompletionDays * 10) / 10,
+    completion_rate:
+      totalTasks > 0 ? Math.round((totalTasks / (totalTasks + 10)) * 100) : 0, // Rough estimate
+  };
+}
+
+function analyzePriorityDistribution(tasks: any[]) {
+  const distribution = { urgent: 0, high: 0, medium: 0, low: 0 };
+  tasks.forEach((task) => {
+    if (distribution.hasOwnProperty(task.priority)) {
+      distribution[task.priority as keyof typeof distribution]++;
+    }
+  });
+  return distribution;
+}
+
+function analyzeClientWorkload(tasks: any[]) {
+  const clientWorkload: Record<string, number> = {};
+  tasks.forEach((task) => {
+    if (task.client_id) {
+      clientWorkload[task.client_id] =
+        (clientWorkload[task.client_id] || 0) + 1;
+    }
+  });
+  return clientWorkload;
+}
+
+function analyzeRecentActivity(tasks: any[]) {
+  const recentTasks = tasks.filter((t) => {
+    const taskDate = new Date(t.created_at);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return taskDate > weekAgo;
+  });
+
+  return {
+    tasks_created_this_week: recentTasks.length,
+    most_common_tag: getMostCommonTag(recentTasks),
+    average_priority: getAveragePriority(recentTasks),
+  };
+}
+
+function generateHeuristicSuggestions(
+  context: TaskSuggestionContext
+): TaskSuggestion[] {
+  const suggestions: TaskSuggestion[] = [];
+  const { tasks } = context;
+
+  const activeTasks = tasks.filter((t) =>
+    ['pending', 'in_progress'].includes(t.status)
+  );
+  const overdueTasks = activeTasks.filter(
+    (t) => t.due_date && new Date(t.due_date) < new Date()
+  );
+
+  // Suggest prioritizing overdue tasks
+  if (overdueTasks.length > 0) {
+    suggestions.push({
+      id: `overdue-priority-${Date.now()}`,
+      type: 'priority',
+      title: 'Prioritize Overdue Tasks',
+      description: `You have ${overdueTasks.length} overdue task(s). Consider updating their priority or rescheduling them.`,
+      confidence: 0.9,
+      suggested_action: {
+        type: 'bulk_update_priority',
+        parameters: {
+          task_ids: overdueTasks.map((t) => t.id),
+          priority: 'urgent',
+        },
+      },
+      created_at: new Date().toISOString(),
+      is_applied: false,
+    });
+  }
+
+  // Suggest breaking down large tasks
+  const largeTasks = activeTasks.filter(
+    (t) => t.estimated_hours && t.estimated_hours > 8 && !t.parent_task_id
+  );
+
+  if (largeTasks.length > 0) {
+    suggestions.push({
+      id: `break-down-${Date.now()}`,
+      type: 'template',
+      title: 'Break Down Large Tasks',
+      description:
+        'Consider breaking down tasks estimated to take more than 8 hours into smaller subtasks.',
+      confidence: 0.7,
+      task_id: largeTasks[0].id,
+      suggested_action: {
+        type: 'create_subtasks',
+        parameters: {
+          subtasks: [
+            { title: 'Planning and research', estimated_hours: 2 },
+            { title: 'Implementation', estimated_hours: 4 },
+            { title: 'Review and testing', estimated_hours: 2 },
+          ],
+        },
+      },
+      created_at: new Date().toISOString(),
+      is_applied: false,
+    });
+  }
+
+  return suggestions;
+}
+
+function calculatePriorityFactors(task: any, allTasks: any[]) {
+  const today = new Date();
+  const dueDate = task.due_date ? new Date(task.due_date) : null;
+
+  // Due date urgency factor (0-1)
+  let dueDateUrgency = 0.5;
+  if (dueDate) {
+    const daysUntilDue = Math.floor(
+      (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysUntilDue < 0) dueDateUrgency = 1.0; // Overdue
+    else if (daysUntilDue === 0) dueDateUrgency = 0.9; // Due today
+    else if (daysUntilDue === 1) dueDateUrgency = 0.8; // Due tomorrow
+    else if (daysUntilDue <= 3) dueDateUrgency = 0.7; // Due within 3 days
+    else if (daysUntilDue <= 7) dueDateUrgency = 0.6; // Due within a week
+    else dueDateUrgency = 0.3; // Due later
+  }
+
+  // Dependency impact factor (0-1)
+  const dependentTasks = allTasks.filter(
+    (t) =>
+      t.dependencies &&
+      t.dependencies.some((d: any) => d.depends_on_task_id === task.id)
+  );
+  const dependencyImpact = Math.min(dependentTasks.length * 0.2, 1.0);
+
+  // Client importance factor (placeholder - would be based on client data)
+  const clientImportance = 0.5;
+
+  // Historical pattern factor (placeholder - would be based on completion history)
+  const historicalPattern = 0.5;
+
+  return {
+    due_date_urgency: dueDateUrgency,
+    dependency_impact: dependencyImpact,
+    client_importance: clientImportance,
+    historical_pattern: historicalPattern,
+  };
+}
+
+function calculateSuggestedPriority(
+  factors: any
+): 'low' | 'medium' | 'high' | 'urgent' {
+  const score =
+    factors.due_date_urgency * 0.4 +
+    factors.dependency_impact * 0.3 +
+    factors.client_importance * 0.2 +
+    factors.historical_pattern * 0.1;
+
+  if (score >= 0.8) return 'urgent';
+  if (score >= 0.6) return 'high';
+  if (score >= 0.4) return 'medium';
+  return 'low';
+}
+
+function generatePriorityReason(
+  factors: any,
+  suggestedPriority: string
+): string {
+  const reasons = [];
+
+  if (factors.due_date_urgency > 0.8) {
+    reasons.push('task is overdue or due very soon');
+  }
+  if (factors.dependency_impact > 0.5) {
+    reasons.push('other tasks depend on this one');
+  }
+  if (factors.client_importance > 0.7) {
+    reasons.push('high-priority client');
+  }
+
+  const baseReason = `Suggested ${suggestedPriority} priority`;
+  return reasons.length > 0
+    ? `${baseReason} because ${reasons.join(' and ')}`
+    : `${baseReason} based on current workload analysis`;
+}
+
+function calculatePriorityConfidence(factors: any): number {
+  // Higher confidence when factors are more extreme (closer to 0 or 1)
+  const extremeness = Object.values(factors).map(
+    (f: any) => Math.abs(f - 0.5) * 2
+  );
+  const avgExtremeness =
+    extremeness.reduce((sum: number, e: number) => sum + e, 0) /
+    extremeness.length;
+  return Math.min(0.5 + avgExtremeness * 0.5, 0.95);
+}
+
+function generateReschedulingSuggestion(
+  task: any,
+  daysPastDue: number
+): ReschedulingSuggestion {
+  const today = new Date();
+  let suggestedDate: Date;
+  let reason: string;
+  let confidence: number;
+  const actions: any[] = [];
+
+  if (daysPastDue <= 3) {
+    // Recently overdue - suggest rescheduling to tomorrow or next few days
+    suggestedDate = new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000);
+    reason =
+      'Task is recently overdue. Rescheduling to tomorrow allows for immediate attention.';
+    confidence = 0.8;
+    actions.push({
+      type: 'reschedule',
+      description: 'Reschedule to tomorrow',
+      parameters: { due_date: suggestedDate.toISOString().split('T')[0] },
+    });
+  } else if (daysPastDue <= 7) {
+    // Moderately overdue - suggest breaking down or rescheduling
+    suggestedDate = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
+    reason =
+      'Task has been overdue for several days. Consider breaking it down into smaller parts.';
+    confidence = 0.7;
+    actions.push(
+      {
+        type: 'reschedule',
+        description: 'Reschedule to 3 days from now',
+        parameters: { due_date: suggestedDate.toISOString().split('T')[0] },
+      },
+      {
+        type: 'break_down',
+        description: 'Break down into smaller subtasks',
+        parameters: { create_subtasks: true },
+      }
+    );
+  } else {
+    // Long overdue - suggest major restructuring
+    suggestedDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    reason =
+      "Task has been overdue for a long time. Consider if it's still relevant or needs to be cancelled.";
+    confidence = 0.6;
+    actions.push(
+      {
+        type: 'reschedule',
+        description: 'Reschedule to next week',
+        parameters: { due_date: suggestedDate.toISOString().split('T')[0] },
+      },
+      {
+        type: 'break_down',
+        description: 'Break down into smaller subtasks',
+        parameters: { create_subtasks: true },
+      },
+      {
+        type: 'cancel',
+        description: 'Cancel if no longer relevant',
+        parameters: { status: 'cancelled' },
+      }
+    );
+  }
+
+  return {
+    task_id: task.id,
+    current_due_date: task.due_date,
+    suggested_due_date: suggestedDate.toISOString().split('T')[0],
+    reason,
+    confidence,
+    suggested_actions: actions,
+  };
+}
+
+// Additional helper functions for pattern analysis
+function analyzeCompletionTimeByPriority(completedTasks: any[]) {
+  const timeByPriority: Record<string, number[]> = {};
+
+  completedTasks.forEach((task) => {
+    if (task.created_at && task.updated_at) {
+      const completionTime = Math.floor(
+        (new Date(task.updated_at).getTime() -
+          new Date(task.created_at).getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      if (!timeByPriority[task.priority]) {
+        timeByPriority[task.priority] = [];
+      }
+      timeByPriority[task.priority].push(completionTime);
+    }
+  });
+
+  // Calculate averages
+  const averages: Record<string, number> = {};
+  Object.keys(timeByPriority).forEach((priority) => {
+    const times = timeByPriority[priority];
+    averages[priority] =
+      times.reduce((sum, time) => sum + time, 0) / times.length;
+  });
+
+  return averages;
+}
+
+function analyzeMostProductiveDays(completedTasks: any[]) {
+  const dayCount: Record<string, number> = {};
+
+  completedTasks.forEach((task) => {
+    if (task.updated_at) {
+      const dayOfWeek = new Date(task.updated_at).toLocaleDateString('en-US', {
+        weekday: 'long',
+      });
+      dayCount[dayOfWeek] = (dayCount[dayOfWeek] || 0) + 1;
+    }
+  });
+
+  return Object.entries(dayCount)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([day, count]) => ({ day, count }));
+}
+
+function analyzeTaskTypePatterns(completedTasks: any[]) {
+  const tagCount: Record<string, number> = {};
+
+  completedTasks.forEach((task) => {
+    tagCount[task.tag] = (tagCount[task.tag] || 0) + 1;
+  });
+
+  return Object.entries(tagCount)
+    .sort(([, a], [, b]) => b - a)
+    .map(([tag, count]) => ({ tag, count }));
+}
+
+function analyzeClientPatterns(completedTasks: any[]) {
+  const clientCount: Record<string, number> = {};
+
+  completedTasks.forEach((task) => {
+    if (task.client_id) {
+      clientCount[task.client_id] = (clientCount[task.client_id] || 0) + 1;
+    }
+  });
+
+  return Object.entries(clientCount)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([clientId, count]) => ({ clientId, count }));
+}
+
+function analyzeSeasonalPatterns(completedTasks: any[]) {
+  const monthCount: Record<string, number> = {};
+
+  completedTasks.forEach((task) => {
+    if (task.updated_at) {
+      const month = new Date(task.updated_at).toLocaleDateString('en-US', {
+        month: 'long',
+      });
+      monthCount[month] = (monthCount[month] || 0) + 1;
+    }
+  });
+
+  return Object.entries(monthCount)
+    .sort(([, a], [, b]) => b - a)
+    .map(([month, count]) => ({ month, count }));
+}
+
+function getMostCommonTag(tasks: any[]): string {
+  const tagCount: Record<string, number> = {};
+  tasks.forEach((task) => {
+    tagCount[task.tag] = (tagCount[task.tag] || 0) + 1;
+  });
+
+  return (
+    Object.entries(tagCount).sort(([, a], [, b]) => b - a)[0]?.[0] ||
+    'follow-up'
+  );
+}
+
+function getAveragePriority(tasks: any[]): string {
+  const priorityWeights = { low: 1, medium: 2, high: 3, urgent: 4 };
+  const totalWeight = tasks.reduce(
+    (sum, task) =>
+      sum +
+      (priorityWeights[task.priority as keyof typeof priorityWeights] || 2),
+    0
+  );
+  const avgWeight = totalWeight / tasks.length;
+
+  if (avgWeight >= 3.5) return 'urgent';
+  if (avgWeight >= 2.5) return 'high';
+  if (avgWeight >= 1.5) return 'medium';
+  return 'low';
+}
+
+// Task Automation Engine Functions
+
+export interface AutomationExecutionResult {
+  status: 'success' | 'failed' | 'partial';
+  executed_actions: any[];
+  error_message: string | null;
+  created_tasks?: string[];
+  updated_tasks?: string[];
+  notifications_sent?: number;
+}
+
+export interface AutomationValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export async function executeAutomationRule(
+  rule: any,
+  task: any,
+  triggerContext: Record<string, any> = {}
+): Promise<AutomationExecutionResult> {
+  try {
+    // Evaluate conditions
+    const conditionsMet = evaluateAutomationConditions(
+      rule.conditions || {},
+      task,
+      triggerContext
+    );
+
+    if (!conditionsMet) {
+      return {
+        status: 'success',
+        executed_actions: [],
+        error_message: 'Conditions not met',
+      };
+    }
+
+    const executedActions: any[] = [];
+    const createdTasks: string[] = [];
+    const updatedTasks: string[] = [];
+    let notificationsSent = 0;
+    let hasErrors = false;
+    let errorMessage: string | null = null;
+
+    // Execute each action
+    for (const action of rule.actions) {
+      try {
+        const result = await executeAutomationAction(
+          action,
+          task,
+          triggerContext
+        );
+        executedActions.push({
+          ...action,
+          result,
+          executed_at: new Date().toISOString(),
+        });
+
+        // Track results
+        if (result.created_task_id) {
+          createdTasks.push(result.created_task_id);
+        }
+        if (result.updated_task_id) {
+          updatedTasks.push(result.updated_task_id);
+        }
+        if (result.notification_sent) {
+          notificationsSent++;
+        }
+      } catch (actionError) {
+        console.error(`Error executing action ${action.type}:`, actionError);
+        hasErrors = true;
+        errorMessage =
+          actionError instanceof Error ? actionError.message : 'Unknown error';
+
+        executedActions.push({
+          ...action,
+          error: errorMessage,
+          executed_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    return {
+      status: hasErrors
+        ? executedActions.length > 0
+          ? 'partial'
+          : 'failed'
+        : 'success',
+      executed_actions: executedActions,
+      error_message: errorMessage,
+      created_tasks: createdTasks,
+      updated_tasks: updatedTasks,
+      notifications_sent: notificationsSent,
+    };
+  } catch (error) {
+    console.error('Error executing automation rule:', error);
+    return {
+      status: 'failed',
+      executed_actions: [],
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+export async function executeAutomationAction(
+  action: any,
+  task: any,
+  context: Record<string, any>
+): Promise<any> {
+  const { supabase } = await import('@/lib/supabase');
+
+  switch (action.type) {
+    case 'create_task':
+      return await executeCreateTaskAction(action.parameters, task, context);
+
+    case 'update_status':
+      return await executeUpdateStatusAction(action.parameters, task);
+
+    case 'update_priority':
+      return await executeUpdatePriorityAction(action.parameters, task);
+
+    case 'send_notification':
+      return await executeSendNotificationAction(
+        action.parameters,
+        task,
+        context
+      );
+
+    case 'assign_user':
+      return await executeAssignUserAction(action.parameters, task);
+
+    case 'create_follow_up':
+      return await executeCreateFollowUpAction(
+        action.parameters,
+        task,
+        context
+      );
+
+    case 'reschedule':
+      return await executeRescheduleAction(action.parameters, task);
+
+    case 'add_dependency':
+      return await executeAddDependencyAction(action.parameters, task);
+
+    case 'create_subtasks':
+      return await executeCreateSubtasksAction(action.parameters, task);
+
+    default:
+      throw new Error(`Unknown automation action type: ${action.type}`);
+  }
+}
+
+async function executeCreateTaskAction(
+  parameters: any,
+  originalTask: any,
+  context: any
+) {
+  const { supabase } = await import('@/lib/supabase');
+
+  // Process template variables in parameters
+  const processedParams = processTemplateVariables(
+    parameters,
+    originalTask,
+    context
+  );
+
+  const newTask = {
+    user_id: originalTask.user_id,
+    title: processedParams.title || 'Automated Task',
+    description: processedParams.description || null,
+    client_id: processedParams.client_id || originalTask.client_id,
+    priority: processedParams.priority || 'medium',
+    status: processedParams.status || 'pending',
+    tag: processedParams.tag || 'follow-up',
+    due_date: calculateDueDate(processedParams.due_date),
+    estimated_hours: processedParams.estimated_hours || null,
+    ai_generated: true,
+    ai_confidence_score: 0.8,
+  };
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(newTask)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    created_task_id: data.id,
+    task_data: data,
+  };
+}
+
+async function executeUpdateStatusAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      status: parameters.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    updated_task_id: task.id,
+    old_status: task.status,
+    new_status: parameters.status,
+  };
+}
+
+async function executeUpdatePriorityAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      priority: parameters.priority,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    updated_task_id: task.id,
+    old_priority: task.priority,
+    new_priority: parameters.priority,
+  };
+}
+
+async function executeSendNotificationAction(
+  parameters: any,
+  task: any,
+  context: any
+) {
+  // In a real implementation, this would integrate with a notification service
+  // For now, we'll simulate sending a notification
+
+  const message = processTemplateVariables(
+    parameters.message || 'Task notification',
+    task,
+    context
+  );
+
+  console.log(`Automation Notification: ${message}`);
+
+  // Here you would integrate with:
+  // - Push notifications
+  // - Email service
+  // - In-app notifications
+  // - Slack/Teams webhooks
+
+  return {
+    notification_sent: true,
+    message: message,
+    type: parameters.type || 'general',
+  };
+}
+
+async function executeAssignUserAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  // Create task assignment
+  const { data, error } = await supabase
+    .from('task_assignments')
+    .insert({
+      task_id: task.id,
+      user_id: parameters.user_id,
+      assigned_by: task.user_id,
+      assigned_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    assignment_created: true,
+    assigned_user_id: parameters.user_id,
+    assignment_id: data.id,
+  };
+}
+
+async function executeCreateFollowUpAction(
+  parameters: any,
+  originalTask: any,
+  context: any
+) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const followUpTask = {
+    user_id: originalTask.user_id,
+    title: `Follow up: ${originalTask.title}`,
+    description: `Follow-up task for: ${originalTask.title}`,
+    client_id: originalTask.client_id,
+    priority: parameters.priority || 'medium',
+    status: 'pending',
+    tag: 'follow-up',
+    due_date: calculateDueDate(parameters.due_date || '+3 days'),
+    ai_generated: true,
+    ai_confidence_score: 0.9,
+  };
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(followUpTask)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    created_task_id: data.id,
+    follow_up_task: data,
+  };
+}
+
+async function executeRescheduleAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const newDueDate = calculateDueDate(parameters.due_date);
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      due_date: newDueDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    updated_task_id: task.id,
+    old_due_date: task.due_date,
+    new_due_date: newDueDate,
+  };
+}
+
+async function executeAddDependencyAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const { data, error } = await supabase
+    .from('task_dependencies')
+    .insert({
+      task_id: task.id,
+      depends_on_task_id: parameters.depends_on_task_id,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    dependency_created: true,
+    dependency_id: data.id,
+    depends_on_task_id: parameters.depends_on_task_id,
+  };
+}
+
+async function executeCreateSubtasksAction(parameters: any, parentTask: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const subtasks = parameters.subtasks || [];
+  const createdSubtasks = [];
+
+  for (const subtaskData of subtasks) {
+    const subtask = {
+      user_id: parentTask.user_id,
+      parent_task_id: parentTask.id,
+      title: subtaskData.title,
+      description: subtaskData.description || null,
+      client_id: parentTask.client_id,
+      priority: subtaskData.priority || 'medium',
+      status: 'pending',
+      tag: subtaskData.tag || parentTask.tag,
+      due_date: calculateDueDate(subtaskData.due_date),
+      estimated_hours: subtaskData.estimated_hours || null,
+      ai_generated: true,
+      ai_confidence_score: 0.8,
+    };
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert(subtask)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating subtask:', error);
+      continue;
+    }
+
+    createdSubtasks.push(data);
+  }
+
+  return {
+    created_subtasks: createdSubtasks.length,
+    subtask_ids: createdSubtasks.map((s) => s.id),
+  };
+}
+
+export async function validateAutomationRule(
+  rule: any
+): Promise<AutomationValidationResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Validate trigger
+  const validTriggers = [
+    'task_completed',
+    'task_overdue',
+    'status_changed',
+    'time_tracked',
+    'due_date_approaching',
+  ];
+  if (!validTriggers.includes(rule.trigger)) {
+    errors.push(`Invalid trigger: ${rule.trigger}`);
+  }
+
+  // Validate conditions
+  if (rule.conditions && typeof rule.conditions !== 'object') {
+    errors.push('Conditions must be an object');
+  }
+
+  // Validate actions
+  if (!Array.isArray(rule.actions) || rule.actions.length === 0) {
+    errors.push('At least one action is required');
+  } else {
+    const validActionTypes = [
+      'create_task',
+      'update_status',
+      'update_priority',
+      'send_notification',
+      'assign_user',
+      'create_follow_up',
+      'reschedule',
+      'add_dependency',
+      'create_subtasks',
+    ];
+
+    rule.actions.forEach((action: any, index: number) => {
+      if (!validActionTypes.includes(action.type)) {
+        errors.push(`Invalid action type at index ${index}: ${action.type}`);
+      }
+
+      if (!action.parameters || typeof action.parameters !== 'object') {
+        errors.push(`Action at index ${index} must have parameters object`);
+      }
+
+      // Validate specific action parameters
+      validateActionParameters(action, index, errors, warnings);
+    });
+  }
+
+  // Check for potential infinite loops
+  if (
+    rule.trigger === 'status_changed' &&
+    rule.actions.some((a: any) => a.type === 'update_status')
+  ) {
+    warnings.push(
+      'Status change trigger with status update action may cause loops'
+    );
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
+
+function validateActionParameters(
+  action: any,
+  index: number,
+  errors: string[],
+  warnings: string[]
+) {
+  const { type, parameters } = action;
+
+  switch (type) {
+    case 'create_task':
+      if (!parameters.title) {
+        errors.push(
+          `Create task action at index ${index} requires title parameter`
+        );
+      }
+      break;
+
+    case 'update_status':
+      const validStatuses = [
+        'pending',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'blocked',
+      ];
+      if (!validStatuses.includes(parameters.status)) {
+        errors.push(
+          `Invalid status in action at index ${index}: ${parameters.status}`
+        );
+      }
+      break;
+
+    case 'update_priority':
+      const validPriorities = ['low', 'medium', 'high', 'urgent'];
+      if (!validPriorities.includes(parameters.priority)) {
+        errors.push(
+          `Invalid priority in action at index ${index}: ${parameters.priority}`
+        );
+      }
+      break;
+
+    case 'assign_user':
+      if (!parameters.user_id) {
+        errors.push(
+          `Assign user action at index ${index} requires user_id parameter`
+        );
+      }
+      break;
+
+    case 'add_dependency':
+      if (!parameters.depends_on_task_id) {
+        errors.push(
+          `Add dependency action at index ${index} requires depends_on_task_id parameter`
+        );
+      }
+      break;
+
+    case 'create_subtasks':
+      if (
+        !Array.isArray(parameters.subtasks) ||
+        parameters.subtasks.length === 0
+      ) {
+        errors.push(
+          `Create subtasks action at index ${index} requires non-empty subtasks array`
+        );
+      }
+      break;
+  }
+}
+
+function evaluateAutomationConditions(
+  conditions: Record<string, any>,
+  task: any,
+  context: Record<string, any>
+): boolean {
+  for (const [key, value] of Object.entries(conditions)) {
+    const actualValue = getNestedValue(key, { task, context });
+
+    if (!evaluateCondition(actualValue, value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getNestedValue(path: string, data: any): any {
+  return path.split('.').reduce((obj, key) => obj?.[key], data);
+}
+
+function evaluateCondition(actual: any, expected: any): boolean {
+  if (typeof expected === 'object' && expected !== null) {
+    // Handle comparison operators
+    if (expected['>']) return actual > expected['>'];
+    if (expected['>=']) return actual >= expected['>='];
+    if (expected['<']) return actual < expected['<'];
+    if (expected['<=']) return actual <= expected['<='];
+    if (expected['!=']) return actual !== expected['!='];
+    if (expected['in']) return expected['in'].includes(actual);
+    if (expected['not_in']) return !expected['not_in'].includes(actual);
+  }
+
+  // Handle array values (OR condition)
+  if (Array.isArray(expected)) {
+    return expected.includes(actual);
+  }
+
+  // Direct equality
+  return actual === expected;
+}
+
+function processTemplateVariables(template: any, task: any, context: any): any {
+  if (typeof template === 'string') {
+    return template.replace(/\{([^}]+)\}/g, (match, path) => {
+      const value = getNestedValue(path, { task, context });
+      return value !== undefined ? String(value) : match;
+    });
+  }
+
+  if (typeof template === 'object' && template !== null) {
+    const result: any = Array.isArray(template) ? [] : {};
+    for (const [key, value] of Object.entries(template)) {
+      result[key] = processTemplateVariables(value, task, context);
+    }
+    return result;
+  }
+
+  return template;
+}
+
+function calculateDueDate(dueDateSpec: string | null): string | null {
+  if (!dueDateSpec) return null;
+
+  const today = new Date();
+
+  // Handle relative dates
+  if (dueDateSpec.startsWith('+')) {
+    const match = dueDateSpec.match(
+      /^\+(\d+)\s*(day|days|week|weeks|month|months)$/
+    );
+    if (match) {
+      const amount = parseInt(match[1]);
+      const unit = match[2];
+
+      let targetDate = new Date(today);
+
+      switch (unit) {
+        case 'day':
+        case 'days':
+          targetDate.setDate(targetDate.getDate() + amount);
+          break;
+        case 'week':
+        case 'weeks':
+          targetDate.setDate(targetDate.getDate() + amount * 7);
+          break;
+        case 'month':
+        case 'months':
+          targetDate.setMonth(targetDate.getMonth() + amount);
+          break;
+      }
+
+      return targetDate.toISOString().split('T')[0];
+    }
+  }
+
+  // Handle absolute dates
+  try {
+    const date = new Date(dueDateSpec);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  } catch (error) {
+    console.error('Invalid date specification:', dueDateSpec);
+  }
+
+  return null;
+}

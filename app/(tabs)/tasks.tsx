@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { TaskCard } from '@/components/TaskCard';
 import { TaskFilter } from '@/components/TaskFilter';
@@ -23,6 +24,7 @@ import { TaskSearchBar } from '@/components/tasks/TaskSearchBar';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
+import TaskSuggestions from '@/components/TaskSuggestions';
 import * as Notifications from 'expo-notifications';
 import { Trash2 } from 'lucide-react-native';
 
@@ -33,7 +35,7 @@ export default function TasksScreen() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
   const tasksQuery = useTasks();
-  const tasks = tasksQuery.data ?? [];
+  const tasks = tasksQuery.data?.filter((task) => !task.parent_task_id) ?? [];
   const toggleTask = useToggleTaskStatus();
   const deleteTask = useDeleteTask();
 
@@ -43,6 +45,7 @@ export default function TasksScreen() {
     setShowSubscriptionModal,
     modalFeatureName,
   } = useSubscriptionGuard();
+
   const activeTasks = useMemo(
     () => tasks.filter((t) => t.status !== 'completed'),
     [tasks]
@@ -59,8 +62,8 @@ export default function TasksScreen() {
         handleNotification: async () =>
           ({
             shouldShowAlert: true,
-            shouldPlaySound: false,
-            shouldSetBadge: false,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
             shouldShowBanner: true,
             shouldShowList: true,
           } as any),
@@ -129,10 +132,12 @@ export default function TasksScreen() {
         <TaskHeader
           onToggleFilter={() => setShowFilter((s) => !s)}
           onOpenForm={() => {
-            if (guardTaskCreation()) {
+            if (guardTaskCreation('')) {
               setShowTaskForm(true);
             }
           }}
+          onOpenBoard={() => router.push('/(tabs)/task-board')}
+          onOpenAnalytics={() => router.push('/(tabs)/task-analytics')}
         />
 
         <TaskSearchBar value={searchQuery} onChangeText={setSearchQuery} />
@@ -154,6 +159,9 @@ export default function TasksScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
+          {/* Task Suggestions */}
+          <TaskSuggestions onRefresh={() => tasksQuery.refetch()} />
+
           {/* Active Tasks */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -166,7 +174,9 @@ export default function TasksScreen() {
                 onToggleComplete={() =>
                   toggleTask.mutate({ id: task.id, to: 'completed' })
                 }
-                onPress={() => setSelectedTask(task as TaskRecord)}
+                onPress={() =>
+                  router.push(`/(tabs)/task-detail?taskId=${task.id}`)
+                }
                 onDelete={() => handleDeleteTask(task.id, task.title)}
               />
             ))}
@@ -185,7 +195,9 @@ export default function TasksScreen() {
                   onToggleComplete={() =>
                     toggleTask.mutate({ id: task.id, to: 'pending' })
                   }
-                  onPress={() => setSelectedTask(task as TaskRecord)}
+                  onPress={() =>
+                    router.push(`/(tabs)/task-detail?taskId=${task.id}`)
+                  }
                   onDelete={() => handleDeleteTask(task.id, task.title)}
                 />
               ))}

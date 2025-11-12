@@ -19,6 +19,25 @@ async function handler(): Promise<Response> {
 
   for (const row of data || []) {
     try {
+      // Get user session for the send-email function
+      const { data: user, error: userErr } =
+        await supabaseAdmin.auth.admin.getUserById(row.user_id);
+      if (userErr || !user) {
+        console.error('Failed to get user for scheduled email:', userErr);
+        continue;
+      }
+
+      // Create a temporary session for the user to send the email
+      const { data: session, error: sessionErr } =
+        await supabaseAdmin.auth.admin.generateAccessToken(row.user_id);
+      if (sessionErr || !session) {
+        console.error(
+          'Failed to generate session for scheduled email:',
+          sessionErr
+        );
+        continue;
+      }
+
       const { error: funcErr } = await supabaseAdmin.functions.invoke(
         'send-email',
         {
@@ -27,16 +46,34 @@ async function handler(): Promise<Response> {
             subject: row.subject,
             html: row.body_html,
             text: row.body_text,
+            from: user.user?.email?.split('@')[0] || 'scheduled',
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
           },
         }
       );
+
       if (!funcErr) {
         await supabaseAdmin
           .from('email_communications')
           .update({ status: 'sent', scheduled_at: null })
           .eq('id', row.id);
+      } else {
+        console.error('Failed to send scheduled email:', funcErr);
+        // Mark as failed after 3 attempts
+        await supabaseAdmin
+          .from('email_communications')
+          .update({
+            status: 'failed',
+            scheduled_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', row.id);
       }
-    } catch (_) {}
+    } catch (e) {
+      console.error('Error processing scheduled email:', e);
+    }
   }
 
   return new Response('OK');

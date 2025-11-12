@@ -6,7 +6,9 @@ export interface EmailRecord {
   id: string;
   user_id: string;
   client_id: string | null;
-  mailgun_message_id: string | null;
+  lead_id: string | null;
+  sendgrid_message_id: string | null;
+  mailgun_message_id: string | null; // Legacy field for backward compatibility
   direction: 'sent' | 'received';
   subject: string | null;
   body_text: string | null;
@@ -17,6 +19,8 @@ export interface EmailRecord {
   opened_at: string | null;
   clicked_at: string | null;
   replied_at: string | null;
+  in_reply_to_message_id: string | null;
+  references: string[] | null;
   created_at: string;
 }
 
@@ -80,17 +84,23 @@ export function useSendEmail() {
       text?: string;
       client_id?: string | null;
       lead_id?: string | null;
+      from?: string; // Optional custom display name
     }) => {
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
-          ...payload,
-          from: `${user?.email?.split('@')[0]}`,
+          to: payload.to,
+          subject: payload.subject,
+          html: payload.html,
+          text: payload.text,
+          client_id: payload.client_id,
+          lead_id: payload.lead_id,
+          from: payload.from, // This will be used as display name, not email address
         },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
 
-      console.log('data', data);
+      console.log('SendGrid email sent:', data);
       return data;
     },
     onSuccess: () => {

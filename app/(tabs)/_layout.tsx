@@ -185,7 +185,7 @@ export default function TabLayout() {
                 ]}
                 onPress={() => {
                   closeMore();
-                  router.push('/(tabs)/templates');
+                  router.push('/(tabs)/task-templates');
                 }}
               >
                 <View
@@ -194,7 +194,45 @@ export default function TabLayout() {
                   <NotepadTextDashed size={18} color={'#6366F1'} />
                 </View>
                 <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Templates
+                  Task Templates
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.sidebarItem,
+                  { backgroundColor: cardBg, borderColor: cardBorder },
+                ]}
+                onPress={() => {
+                  closeMore();
+                  router.push('/(tabs)/dependency-graph');
+                }}
+              >
+                <View
+                  style={[styles.iconWrap, { backgroundColor: '#8B5CF620' }]}
+                >
+                  <Ionicons name="git-network" size={18} color={'#8B5CF6'} />
+                </View>
+                <Text style={[styles.sidebarText, { color: textColor }]}>
+                  Dependencies
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.sidebarItem,
+                  { backgroundColor: cardBg, borderColor: cardBorder },
+                ]}
+                onPress={() => {
+                  closeMore();
+                  router.push('/(tabs)/task-automation');
+                }}
+              >
+                <View
+                  style={[styles.iconWrap, { backgroundColor: '#EC489920' }]}
+                >
+                  <Ionicons name="flash" size={18} color={'#EC4899'} />
+                </View>
+                <Text style={[styles.sidebarText, { color: textColor }]}>
+                  Automation
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -332,6 +370,12 @@ export default function TabLayout() {
         <Tabs.Screen name="settings" options={{ href: null }} />
         <Tabs.Screen name="templates" options={{ href: null }} />
         <Tabs.Screen name="subscription" options={{ href: null }} />
+        <Tabs.Screen name="task-board" options={{ href: null }} />
+        <Tabs.Screen name="task-detail" options={{ href: null }} />
+        <Tabs.Screen name="task-analytics" options={{ href: null }} />
+        <Tabs.Screen name="task-templates" options={{ href: null }} />
+        <Tabs.Screen name="dependency-graph" options={{ href: null }} />
+        <Tabs.Screen name="task-automation" options={{ href: null }} />
       </Tabs>
     </>
   );

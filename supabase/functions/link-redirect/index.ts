@@ -21,7 +21,7 @@ async function handler(req: Request): Promise<Response> {
         .from('email_communications')
         .select('id')
         .eq('user_id', userId)
-        .eq('mailgun_message_id', messageId)
+        .eq('sendgrid_message_id', messageId)
         .maybeSingle();
       if (!findErr && data) {
         await supabaseAdmin.from('email_events').insert({

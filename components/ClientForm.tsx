@@ -25,6 +25,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { searchPlaces as searchPlacesApi, PlaceResult } from '@/lib/maps';
 import { useCreateClient } from '@/hooks/useClients';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface ClientFormProps {
   visible: boolean;
@@ -196,7 +197,9 @@ export function ClientForm({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Add Client</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -510,7 +513,7 @@ export function ClientForm({
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
