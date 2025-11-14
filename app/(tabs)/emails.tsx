@@ -66,6 +66,69 @@ export default function EmailsScreen() {
               Browse conversations and compose emails
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/email-drafts' as any);
+              }
+            }}
+            style={[
+              styles.navCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+            >
+              Drafts
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              View and manage saved email drafts
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/email-signatures' as any);
+              }
+            }}
+            style={[
+              styles.navCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+            >
+              Signatures
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              Manage your email signatures
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/templates' as any);
+              }
+            }}
+            style={[
+              styles.navCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+            >
+              Templates
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              Create and manage email templates
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 

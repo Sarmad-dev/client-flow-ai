@@ -7,14 +7,12 @@ interface TaskCreateModalProps {
   visible: boolean;
   onClose: () => void;
   onCreated?: (task: any) => void;
-  initialStatus?: string;
 }
 
 export function TaskCreateModal({
   visible,
   onClose,
   onCreated,
-  initialStatus = 'pending',
 }: TaskCreateModalProps) {
   const clientsQuery = useClients();
   const clients = useMemo(
@@ -42,7 +40,7 @@ export function TaskCreateModal({
           due_date: payload.due_date ?? payload.dueDate ?? null,
           tag: payload.tag,
           priority: payload.priority,
-          status: initialStatus,
+          status: 'pending',
         } as any);
         onCreated?.(task);
       }}

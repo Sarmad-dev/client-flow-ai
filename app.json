@@ -1,13 +1,13 @@
 {
   "expo": {
     "name": "NexaSuit",
-    "slug": "nexasuit",
+    "slug": "client-flow-ai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/app-icon.png",
-    "scheme": "nexasuit",
+    "icon": "./assets/images/icon.png",
+    "scheme": "clientflowai",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "jsEngine": "hermes",
     "ios": {
       "supportsTablet": true
@@ -25,32 +25,27 @@
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "2.0.21",
-            "gradlePluginVersion": "com.android.tools.build:gradle:8.3.2",
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35
+            "kotlinVersion": "1.9.24",
+            "gradlePluginVersion": "8.5.2",
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34
           }
         }
       ]
     ],
     "extra": {
-      "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "246850519520-nnodbd3hep5mcddlo9d6krbuvplhvi19.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "246850519520-vbfjdko8mnvopfgf294vvvghha53s5gp.apps.googleusercontent.com",
       "router": {},
       "eas": {
-        "projectId": "1052317b-791f-4646-84ef-d76e39aac2aa"
+        "projectId": "584d2718-bbea-4ad1-8cf2-028a910f6015"
       }
     },
     "experiments": {
       "typedRoutes": true
     },
-    "owner": "sarmadjkl",
+    "owner": "sarmad_khan2694",
     "android": {
-      "package": "com.sarmadkhan2694.nexasuit",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyB-TmPW_kLlmU15tZFzjLhgNX8AYURorbk"
-        }
-      }
+      "package": "com.sarmadkhan2694.nexasuit"
     }
   }
 }

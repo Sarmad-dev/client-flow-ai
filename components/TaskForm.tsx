@@ -16,11 +16,11 @@ import {
   User,
   Tag,
   TriangleAlert as AlertTriangle,
+  Clock,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useAuth } from '@/contexts/AuthContext';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface TaskFormProps {
   visible: boolean;
@@ -44,6 +44,7 @@ export function TaskForm({
   clients,
   initialData,
 }: TaskFormProps) {
+  console.log('TaskForm visible:', visible);
   const { user } = useAuth();
   const { colors } = useTheme();
   const [title, setTitle] = useState(initialData?.title || '');
@@ -132,8 +133,8 @@ export function TaskForm({
                 text: 'Connect',
                 style: 'default',
                 onPress: async () => {
-                  await gc.connect();
-                  resolve(true);
+                  const ok = await gc.connect();
+                  resolve(!!ok);
                 },
               },
             ]
@@ -144,11 +145,11 @@ export function TaskForm({
 
       const start = new Date(task.due_date || task.dueDate || new Date());
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      await gc.createCalendarEvent({
-        summary: task.title,
+      await gc.createEvent({
+        title: task.title,
         description: task.description,
-        start: { dateTime: start.toISOString(), timeZone: 'UTC' },
-        end: { dateTime: end.toISOString(), timeZone: 'UTC' },
+        startDate: start,
+        endDate: end,
       });
     } catch (error) {
       console.error('Error adding to calendar:', error);
@@ -173,9 +174,7 @@ export function TaskForm({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>
             Create Task
@@ -495,7 +494,7 @@ export function TaskForm({
             </ScrollView>
           </View>
         </Modal>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }

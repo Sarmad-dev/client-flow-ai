@@ -24,7 +24,5 @@
   "[javascriptreact]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "java.configuration.updateBuildConfiguration": "automatic",
-  "typescript.autoClosingTags": false
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

@@ -6,9 +6,7 @@ export interface EmailRecord {
   id: string;
   user_id: string;
   client_id: string | null;
-  lead_id: string | null;
-  sendgrid_message_id: string | null;
-  mailgun_message_id: string | null; // Legacy field for backward compatibility
+  mailgun_message_id: string | null;
   direction: 'sent' | 'received';
   subject: string | null;
   body_text: string | null;
@@ -19,8 +17,6 @@ export interface EmailRecord {
   opened_at: string | null;
   clicked_at: string | null;
   replied_at: string | null;
-  in_reply_to_message_id: string | null;
-  references: string[] | null;
   created_at: string;
 }
 
@@ -100,13 +96,14 @@ export function useSendEmail() {
       });
       if (error) throw error;
 
-      console.log('SendGrid email sent:', data);
+      console.log('data', data);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recent-emails'] });
       queryClient.invalidateQueries({ queryKey: ['email-stats'] });
       queryClient.invalidateQueries({ queryKey: ['email-threads'] });
+      queryClient.invalidateQueries({ queryKey: ['thread-messages'] });
     },
   });
 }
@@ -216,7 +213,9 @@ export interface EmailThread {
   lastMessageTime: string;
   lastSubject: string | null;
   totalCount: number;
+  unreadCount: number;
   hasReplied: boolean;
+  threadId: string;
 }
 
 export function useEmailThreads() {
@@ -287,13 +286,24 @@ export function useEmailThreads() {
         );
         const name = clientNameByEmail.get(email) ?? null;
         const hasReplied = items.some((e) => !!e.replied_at);
+
+        // Calculate unread count (received emails without opened_at)
+        const unreadCount = allWithCounterparty.filter(
+          (e) => e.direction === 'received' && !e.opened_at
+        ).length;
+
+        // Generate thread ID from counterparty email
+        const threadId = `thread-${email.replace(/[^a-z0-9]/gi, '-')}`;
+
         threads.push({
           counterpartyEmail: email,
           displayName: name,
           lastMessageTime: last.created_at,
           lastSubject: last.subject,
           totalCount: allWithCounterparty.length,
+          unreadCount,
           hasReplied,
+          threadId,
         });
       }
 

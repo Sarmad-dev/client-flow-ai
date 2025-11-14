@@ -22,15 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
-import {
-  User,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  UserPlus,
-  Smartphone,
-} from 'lucide-react-native';
+import { User, Mail, Lock, Eye, EyeOff, UserPlus, Smartphone } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAlert } from '@/contexts/CustomAlertContext';
@@ -41,7 +33,7 @@ export default function SignUpScreen() {
   const { signUp, signInWithGoogle } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const { showAlert } = useAlert();
+  const { showAlert } = useAlert()
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -64,9 +56,7 @@ export default function SignUpScreen() {
 
   const formAnimatedStyle = useAnimatedStyle(() => ({
     opacity: formOpacity.value,
-    transform: [
-      { translateY: interpolate(formOpacity.value, [0, 1], [50, 0]) },
-    ],
+    transform: [{ translateY: interpolate(formOpacity.value, [0, 1], [50, 0]) }],
   }));
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
@@ -99,61 +89,52 @@ export default function SignUpScreen() {
 
   const handleSignUp = async () => {
     if (!validateForm()) return;
-
+  
     setLoading(true);
     buttonScale.value = withSpring(0.95);
-
+  
     const { error } = await signUp(email.trim(), password, fullName.trim());
-
+  
     if (error) {
+      // setShowAlert(true);
       Alert.alert('Signup Error', error.message);
-
-      showAlert({
-        title: 'Error!',
-        message: 'Signup Error',
-      });
-
+  
       buttonScale.value = withSpring(1);
       setLoading(false);
       return;
     }
 
-    // Alert.alert('User created', 'Please check your email to verify your account.');
-
-    showAlert({
-      title: 'Success!',
-      message:
-        'Account created successfully. Please check your email to verify your account.',
-      confirmText: 'Login Now',
-      onConfirm: () => router.replace('/(auth)/sign-in'),
-    });
-
+    Alert.alert('User created', 'Please check your email to verify your account.');
+  
+    // showAlert({
+    //   title: 'Success!',
+    //   message: 'Account created successfully. Please check your email to verify your account.',
+    //   confirmText: 'Login Now',
+    //   onConfirm: () => router.replace('/(auth)/sign-in'),
+    // });
+  
     setLoading(false);
   };
+  
 
   const handleGoogleSignUp = async () => {
     setLoading(true);
     const { error } = await signInWithGoogle();
-
+    
     if (error) {
       Alert.alert('Google Sign Up Failed', error.message);
     }
-
+    
     setLoading(false);
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      <KeyboardAvoidingView
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
             {/* Logo Section */}
             <Animated.View style={[styles.logoSection, logoAnimatedStyle]}>
@@ -165,9 +146,7 @@ export default function SignUpScreen() {
               >
                 <Smartphone size={32} color="#FFFFFF" strokeWidth={2} />
               </LinearGradient>
-              <Text style={[styles.appName, { color: colors.text }]}>
-                ClientFlow AI
-              </Text>
+              <Text style={[styles.appName, { color: colors.text }]}>ClientFlow AI</Text>
               <Text style={[styles.tagline, { color: colors.textSecondary }]}>
                 Join thousands of professionals
               </Text>
@@ -175,29 +154,15 @@ export default function SignUpScreen() {
 
             {/* Form Section */}
             <Animated.View style={[styles.formSection, formAnimatedStyle]}>
-              <Text style={[styles.welcomeText, { color: colors.text }]}>
-                Create account
-              </Text>
+              <Text style={[styles.welcomeText, { color: colors.text }]}>Create account</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Start managing your clients like a pro
               </Text>
 
               {/* Full Name Input */}
               <View style={styles.inputContainer}>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <User
-                    size={20}
-                    color={colors.textSecondary}
-                    strokeWidth={2}
-                  />
+                <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <User size={20} color={colors.textSecondary} strokeWidth={2} />
                   <TextInput
                     style={[styles.input, { color: colors.text }]}
                     placeholder="Full name"
@@ -211,20 +176,8 @@ export default function SignUpScreen() {
 
               {/* Email Input */}
               <View style={styles.inputContainer}>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Mail
-                    size={20}
-                    color={colors.textSecondary}
-                    strokeWidth={2}
-                  />
+                <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Mail size={20} color={colors.textSecondary} strokeWidth={2} />
                   <TextInput
                     style={[styles.input, { color: colors.text }]}
                     placeholder="Email address"
@@ -240,20 +193,8 @@ export default function SignUpScreen() {
 
               {/* Password Input */}
               <View style={styles.inputContainer}>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Lock
-                    size={20}
-                    color={colors.textSecondary}
-                    strokeWidth={2}
-                  />
+                <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Lock size={20} color={colors.textSecondary} strokeWidth={2} />
                   <TextInput
                     style={[styles.input, { color: colors.text }]}
                     placeholder="Password (min. 6 characters)"
@@ -268,17 +209,9 @@ export default function SignUpScreen() {
                     style={styles.eyeButton}
                   >
                     {showPassword ? (
-                      <EyeOff
-                        size={20}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <EyeOff size={20} color={colors.textSecondary} strokeWidth={2} />
                     ) : (
-                      <Eye
-                        size={20}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <Eye size={20} color={colors.textSecondary} strokeWidth={2} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -286,20 +219,8 @@ export default function SignUpScreen() {
 
               {/* Confirm Password Input */}
               <View style={styles.inputContainer}>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Lock
-                    size={20}
-                    color={colors.textSecondary}
-                    strokeWidth={2}
-                  />
+                <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Lock size={20} color={colors.textSecondary} strokeWidth={2} />
                   <TextInput
                     style={[styles.input, { color: colors.text }]}
                     placeholder="Confirm password"
@@ -314,17 +235,9 @@ export default function SignUpScreen() {
                     style={styles.eyeButton}
                   >
                     {showConfirmPassword ? (
-                      <EyeOff
-                        size={20}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <EyeOff size={20} color={colors.textSecondary} strokeWidth={2} />
                     ) : (
-                      <Eye
-                        size={20}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <Eye size={20} color={colors.textSecondary} strokeWidth={2} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -333,10 +246,7 @@ export default function SignUpScreen() {
               {/* Sign Up Button */}
               <Animated.View style={buttonAnimatedStyle}>
                 <TouchableOpacity
-                  style={[
-                    styles.signUpButton,
-                    { backgroundColor: colors.primary },
-                  ]}
+                  style={[styles.signUpButton, { backgroundColor: colors.primary }]}
                   onPress={handleSignUp}
                   disabled={loading}
                   activeOpacity={0.8}
@@ -346,9 +256,7 @@ export default function SignUpScreen() {
                   ) : (
                     <>
                       <UserPlus size={20} color="#FFFFFF" strokeWidth={2} />
-                      <Text style={styles.signUpButtonText}>
-                        Create Account
-                      </Text>
+                      <Text style={styles.signUpButtonText}>Create Account</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -356,28 +264,14 @@ export default function SignUpScreen() {
 
               {/* Divider */}
               <View style={styles.dividerContainer}>
-                <View
-                  style={[styles.divider, { backgroundColor: colors.border }]}
-                />
-                <Text
-                  style={[styles.dividerText, { color: colors.textSecondary }]}
-                >
-                  or
-                </Text>
-                <View
-                  style={[styles.divider, { backgroundColor: colors.border }]}
-                />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
               </View>
 
               {/* Google Sign Up */}
               <TouchableOpacity
-                style={[
-                  styles.googleButton,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
+                style={[styles.googleButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={handleGoogleSignUp}
                 disabled={loading}
                 activeOpacity={0.8}
@@ -392,18 +286,12 @@ export default function SignUpScreen() {
 
               {/* Sign In Link */}
               <View style={styles.signInContainer}>
-                <Text
-                  style={[styles.signInText, { color: colors.textSecondary }]}
-                >
+                <Text style={[styles.signInText, { color: colors.textSecondary }]}>
                   Already have an account?{' '}
                 </Text>
                 <Link href="/(auth)/sign-in" asChild>
                   <TouchableOpacity>
-                    <Text
-                      style={[styles.signInLink, { color: colors.primary }]}
-                    >
-                      Sign in
-                    </Text>
+                    <Text style={[styles.signInLink, { color: colors.primary }]}>Sign in</Text>
                   </TouchableOpacity>
                 </Link>
               </View>

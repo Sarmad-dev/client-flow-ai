@@ -1,42 +1,19 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Filter, Plus, Columns, BarChart3 } from 'lucide-react-native';
+import { Filter, Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 
 interface TaskHeaderProps {
   onToggleFilter: () => void;
   onOpenForm: () => void;
-  onOpenBoard?: () => void;
-  onOpenAnalytics?: () => void;
 }
 
-export function TaskHeader({
-  onToggleFilter,
-  onOpenForm,
-  onOpenBoard,
-  onOpenAnalytics,
-}: TaskHeaderProps) {
+export function TaskHeader({ onToggleFilter, onOpenForm }: TaskHeaderProps) {
   const { colors } = useTheme();
   return (
     <View style={styles.header}>
       <Text style={[styles.title, { color: colors.text }]}>Tasks</Text>
       <View style={styles.headerActions}>
-        {onOpenAnalytics && (
-          <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: colors.surface }]}
-            onPress={onOpenAnalytics}
-          >
-            <BarChart3 size={20} color={colors.text} strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-        {onOpenBoard && (
-          <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: colors.surface }]}
-            onPress={onOpenBoard}
-          >
-            <Columns size={20} color={colors.text} strokeWidth={2} />
-          </TouchableOpacity>
-        )}
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: colors.surface }]}
           onPress={onToggleFilter}

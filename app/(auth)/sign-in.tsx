@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -29,8 +30,6 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAlert } from '@/contexts/CustomAlertContext';
 
 export default function SignInScreen() {
   const { colors } = useTheme();
@@ -39,7 +38,6 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { showAlert } = useAlert();
 
   // Animations
   const logoScale = useSharedValue(0);
@@ -69,10 +67,7 @@ export default function SignInScreen() {
 
   const handleSignIn = async () => {
     if (!email.trim() || !password.trim()) {
-      showAlert({
-        title: 'Error!',
-        message: 'Please fill in all fields',
-      });
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
@@ -82,10 +77,7 @@ export default function SignInScreen() {
     const { error } = await signIn(email.trim(), password);
 
     if (error) {
-      showAlert({
-        title: 'Error!',
-        message: 'Sign In Failed',
-      });
+      Alert.alert('Sign In Failed', error.message);
       buttonScale.value = withSpring(1);
     } else {
       router.replace('/');
@@ -99,10 +91,7 @@ export default function SignInScreen() {
     const { error } = await signInWithGoogle();
 
     if (error) {
-      showAlert({
-        title: 'Error!',
-        message: 'Google Sign In Failed',
-      });
+      Alert.alert('Google Sign In Failed', error.message);
     }
 
     setLoading(false);

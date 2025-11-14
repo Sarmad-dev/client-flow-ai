@@ -16,6 +16,7 @@ import {
   CircleHelp as HelpCircle,
   LogOut,
   ChevronRight,
+  Mail,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,6 +61,17 @@ export default function SettingsScreen() {
           icon: Bell,
           title: 'Notifications',
           subtitle: 'Push notifications & reminders',
+        },
+      ],
+    },
+    {
+      title: 'Email',
+      items: [
+        {
+          icon: Mail,
+          title: 'Email Signatures',
+          subtitle: 'Manage your email signatures',
+          onPress: () => router.push('/(tabs)/email-signatures'),
         },
       ],
     },

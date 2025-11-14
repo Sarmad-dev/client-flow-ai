@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useEmailStats, useEmailActivity } from '@/hooks/useEmails';
-import { CartesianChart, Bar } from 'victory-native';
+import { BarChart, LineChart } from 'react-native-gifted-charts';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
@@ -25,7 +25,6 @@ export default function EmailsAnalyticsScreen() {
     setShowSubscriptionModal,
     modalFeatureName,
   } = useSubscriptionGuard();
-
   const [range, setRange] = useState<'7d' | '14d' | '30d' | 'custom'>('7d');
   const startOfDay = (d: Date) => new Date(new Date(d).setHours(0, 0, 0, 0));
   const endOfDay = (d: Date) => new Date(new Date(d).setHours(23, 59, 59, 999));
@@ -74,19 +73,27 @@ export default function EmailsAnalyticsScreen() {
     Math.floor((width - 40) / Math.min(activity.length || 1, 12))
   );
 
-  const chartInput = useMemo(
-    () =>
-      activity.map((p, i) => ({
-        idx: i + 1,
-        date: p.date,
-        sent: p.sent,
-        delivered: p.delivered,
-        opened: p.opened,
-        clicked: p.clicked,
-        replied: p.replied,
-      })),
-    [activity]
-  );
+  const sentData = activity.map((p, i) => ({
+    value: p.sent,
+    label: i % labelEvery === 0 ? fmt(p.date) : '',
+  }));
+  const deliveredData = activity.map((p, i) => ({
+    value: p.delivered,
+    label: i % labelEvery === 0 ? fmt(p.date) : '',
+  }));
+  const openedData = activity.map((p, i) => ({
+    value: p.opened,
+    label: i % labelEvery === 0 ? fmt(p.date) : '',
+  }));
+
+  const clickedData = activity.map((p, i) => ({
+    value: p.clicked,
+    label: i % labelEvery === 0 ? fmt(p.date) : '',
+  }));
+  const repliedData = activity.map((p, i) => ({
+    value: p.replied,
+    label: i % labelEvery === 0 ? fmt(p.date) : '',
+  }));
 
   const chartData = useMemo(() => {
     const d = [
@@ -311,29 +318,30 @@ export default function EmailsAnalyticsScreen() {
               <Text style={{ color: colors.textSecondary }}>Replied</Text>
             </View>
           </View>
-          <View style={{ height: 200 }}>
-            <CartesianChart
-              data={chartInput}
-              xKey="idx"
-              yKeys={['sent']}
-              domainPadding={{ left: 24, right: 24, top: 12, bottom: 12 }}
-              axisOptions={{
-                secondary: {
-                  yAxis: [{ tickCount: 4 }],
-                },
-                labelRotate: 0,
-              }}
-            >
-              {({ points, chartBounds }: any) => (
-                <Bar
-                  points={points.sent}
-                  chartBounds={chartBounds}
-                  color="#10B981"
-                  roundedCorners={{ topLeft: 6, topRight: 6 }}
-                />
-              )}
-            </CartesianChart>
-          </View>
+          <BarChart
+            data={sentData}
+            frontColor="#10B981"
+            barBorderRadius={6}
+            isAnimated
+            xAxisThickness={1}
+            yAxisThickness={0}
+            xAxisColor={colors.border}
+            yAxisTextStyle={{ color: colors.textSecondary }}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            barWidth={barWidthPx}
+            noOfSections={4}
+            spacing={8}
+            hideRules
+            onPress={(_: any, index: number) =>
+              setSelected({
+                date: activity[index]?.date || '',
+                sent: activity[index]?.sent || 0,
+                opened: activity[index]?.opened || 0,
+                clicked: activity[index]?.clicked || 0,
+                replied: activity[index]?.replied || 0,
+              })
+            }
+          />
           <Text
             style={{
               color: colors.textSecondary,
@@ -343,28 +351,21 @@ export default function EmailsAnalyticsScreen() {
           >
             Delivered
           </Text>
-          <View style={{ height: 200 }}>
-            <CartesianChart
-              data={chartInput}
-              xKey="idx"
-              yKeys={['delivered']}
-              domainPadding={{ left: 24, right: 24, top: 12, bottom: 12 }}
-              axisOptions={{
-                secondary: {
-                  yAxis: [{ tickCount: 4 }],
-                },
-              }}
-            >
-              {({ points, chartBounds }: any) => (
-                <Bar
-                  points={points.delivered}
-                  chartBounds={chartBounds}
-                  color="#22C55E"
-                  roundedCorners={{ topLeft: 6, topRight: 6 }}
-                />
-              )}
-            </CartesianChart>
-          </View>
+          <BarChart
+            data={deliveredData}
+            frontColor="#22C55E"
+            barBorderRadius={6}
+            isAnimated
+            xAxisThickness={1}
+            yAxisThickness={0}
+            xAxisColor={colors.border}
+            yAxisTextStyle={{ color: colors.textSecondary }}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            barWidth={barWidthPx}
+            noOfSections={4}
+            spacing={8}
+            hideRules
+          />
           <Text
             style={{
               color: colors.textSecondary,
@@ -374,28 +375,21 @@ export default function EmailsAnalyticsScreen() {
           >
             Opened
           </Text>
-          <View style={{ height: 200 }}>
-            <CartesianChart
-              data={chartInput}
-              xKey="idx"
-              yKeys={['opened']}
-              domainPadding={{ left: 24, right: 24, top: 12, bottom: 12 }}
-              axisOptions={{
-                secondary: {
-                  yAxis: [{ tickCount: 4 }],
-                },
-              }}
-            >
-              {({ points, chartBounds }: any) => (
-                <Bar
-                  points={points.opened}
-                  chartBounds={chartBounds}
-                  color="#3B82F6"
-                  roundedCorners={{ topLeft: 6, topRight: 6 }}
-                />
-              )}
-            </CartesianChart>
-          </View>
+          <BarChart
+            data={openedData}
+            frontColor="#3B82F6"
+            barBorderRadius={6}
+            isAnimated
+            xAxisThickness={1}
+            yAxisThickness={0}
+            xAxisColor={colors.border}
+            yAxisTextStyle={{ color: colors.textSecondary }}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            barWidth={barWidthPx}
+            noOfSections={4}
+            spacing={8}
+            hideRules
+          />
           <Text
             style={{
               color: colors.textSecondary,
@@ -405,28 +399,21 @@ export default function EmailsAnalyticsScreen() {
           >
             Clicked
           </Text>
-          <View style={{ height: 200 }}>
-            <CartesianChart
-              data={chartInput}
-              xKey="idx"
-              yKeys={['clicked']}
-              domainPadding={{ left: 24, right: 24, top: 12, bottom: 12 }}
-              axisOptions={{
-                secondary: {
-                  yAxis: [{ tickCount: 4 }],
-                },
-              }}
-            >
-              {({ points, chartBounds }: any) => (
-                <Bar
-                  points={points.clicked}
-                  chartBounds={chartBounds}
-                  color="#F59E0B"
-                  roundedCorners={{ topLeft: 6, topRight: 6 }}
-                />
-              )}
-            </CartesianChart>
-          </View>
+          <BarChart
+            data={clickedData}
+            frontColor="#F59E0B"
+            barBorderRadius={6}
+            isAnimated
+            xAxisThickness={1}
+            yAxisThickness={0}
+            xAxisColor={colors.border}
+            yAxisTextStyle={{ color: colors.textSecondary }}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            barWidth={barWidthPx}
+            noOfSections={4}
+            spacing={8}
+            hideRules
+          />
           <Text
             style={{
               color: colors.textSecondary,
@@ -436,28 +423,21 @@ export default function EmailsAnalyticsScreen() {
           >
             Replied
           </Text>
-          <View style={{ height: 200 }}>
-            <CartesianChart
-              data={chartInput}
-              xKey="idx"
-              yKeys={['replied']}
-              domainPadding={{ left: 24, right: 24, top: 12, bottom: 12 }}
-              axisOptions={{
-                secondary: {
-                  yAxis: [{ tickCount: 4 }],
-                },
-              }}
-            >
-              {({ points, chartBounds }: any) => (
-                <Bar
-                  points={points.replied}
-                  chartBounds={chartBounds}
-                  color="#EF4444"
-                  roundedCorners={{ topLeft: 6, topRight: 6 }}
-                />
-              )}
-            </CartesianChart>
-          </View>
+          <BarChart
+            data={repliedData}
+            frontColor="#EF4444"
+            barBorderRadius={6}
+            isAnimated
+            xAxisThickness={1}
+            yAxisThickness={0}
+            xAxisColor={colors.border}
+            yAxisTextStyle={{ color: colors.textSecondary }}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            barWidth={barWidthPx}
+            noOfSections={4}
+            spacing={8}
+            hideRules
+          />
 
           {selected && (
             <View

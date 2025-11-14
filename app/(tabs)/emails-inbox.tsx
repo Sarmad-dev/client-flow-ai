@@ -5,69 +5,67 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
-  useWindowDimensions,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import EmailComposer from '@/components/EmailComposer';
-import { useEmailThreads, useThreadMessages } from '@/hooks/useEmails';
-import EmailDetail from '@/components/EmailDetail';
+import EmailThreadsView from '@/components/EmailThreadsView';
+import EmailThreadDetail from '@/components/EmailThreadDetail';
 import { useClients } from '@/hooks/useClients';
 import { useLeads } from '@/hooks/useLeads';
-import { MessageContent } from '@/components/MessageContent';
+import { useEmailThreads } from '@/hooks/useEmails';
+import { useLocalSearchParams } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 
 export default function EmailsInboxScreen() {
   const { colors } = useTheme();
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [threadQuery, setThreadQuery] = useState('');
+  const params = useLocalSearchParams();
+  const draftId = typeof params.draftId === 'string' ? params.draftId : null;
+
   const [selectedThreadEmail, setSelectedThreadEmail] = useState<string | null>(
     null
   );
+  const [selectedThreadName, setSelectedThreadName] = useState<string | null>(
+    null
+  );
   const [showComposer, setShowComposer] = useState(false);
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [composerDraftId, setComposerDraftId] = useState<string | null>(
+    draftId
+  );
 
-  const threadsQuery = useEmailThreads();
-  const threads = threadsQuery.data ?? [];
+  // Open composer if draftId is provided
+  useEffect(() => {
+    if (draftId) {
+      setShowComposer(true);
+      setComposerDraftId(draftId);
+    }
+  }, [draftId]);
+
   const clientsQuery = useClients();
   const leadsQuery = useLeads();
 
-  useEffect(() => {
-    if (!selectedThreadEmail && threads.length > 0) {
-      setSelectedThreadEmail(threads[0].counterpartyEmail);
-    }
-  }, [threads, selectedThreadEmail]);
-
-  const filteredThreads = useMemo(() => {
-    const q = threadQuery.trim().toLowerCase();
-    if (!q) return threads;
-    return threads.filter(
-      (t) =>
-        t.counterpartyEmail.toLowerCase().includes(q) ||
-        (t.displayName || '').toLowerCase().includes(q) ||
-        (t.lastSubject || '').toLowerCase().includes(q)
-    );
-  }, [threads, threadQuery]);
-
-  const messagesQuery = useThreadMessages(selectedThreadEmail || undefined);
-  const messages = messagesQuery.data ?? [];
-
   const suggestionCandidates = useMemo(() => {
-    const list: { email: string; name?: string | null }[] = [];
-    if (selectedThreadEmail) list.push({ email: selectedThreadEmail });
-    for (const t of threads) {
-      list.push({ email: t.counterpartyEmail, name: t.displayName });
-    }
+    const list: {
+      email: string;
+      name?: string | null;
+      type?: 'client' | 'lead';
+    }[] = [];
+
     for (const c of (clientsQuery.data ?? []).filter((x) => x.email)) {
-      list.push({ email: c.email as string, name: c.name });
+      list.push({ email: c.email as string, name: c.name, type: 'client' });
     }
     for (const l of (leadsQuery.data ?? []).filter((x) => x.email)) {
-      list.push({ email: l.email as string, name: l.name });
+      list.push({ email: l.email as string, name: l.name, type: 'lead' });
     }
+
     // de-dupe by email
     const seen = new Set<string>();
-    const deduped: { email: string; name?: string | null }[] = [];
+    const deduped: {
+      email: string;
+      name?: string | null;
+      type?: 'client' | 'lead';
+    }[] = [];
     for (const s of list) {
       const key = (s.email || '').toLowerCase();
       if (!key || seen.has(key)) continue;
@@ -75,175 +73,86 @@ export default function EmailsInboxScreen() {
       deduped.push(s);
     }
     return deduped;
-  }, [selectedThreadEmail, threads, clientsQuery.data, leadsQuery.data]);
+  }, [clientsQuery.data, leadsQuery.data]);
+
+  const handleSelectThread = (
+    counterpartyEmail: string,
+    displayName: string | null
+  ) => {
+    setSelectedThreadEmail(counterpartyEmail);
+    setSelectedThreadName(displayName);
+  };
+
+  const handleBackToThreads = () => {
+    setSelectedThreadEmail(null);
+    setSelectedThreadName(null);
+  };
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: colors.text }]}>Inbox</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        {selectedThreadEmail && (
           <TouchableOpacity
-            onPress={() => setShowSidebar((s) => !s)}
-            style={[
-              styles.headerBtn,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-            ]}
+            onPress={handleBackToThreads}
+            style={styles.backButton}
           >
-            <Text style={{ color: colors.text, fontWeight: '700' }}>
-              {showSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
-            </Text>
+            <ArrowLeft size={24} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setShowComposer(true)}
-            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Compose</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.bodyRow}>
-        {showSidebar && (
-          <View
-            style={[
-              styles.sidebar,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            {!selectedThreadEmail && (
-              <View
-                style={[
-                  styles.searchBox,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                  },
-                ]}
-              >
-                <TextInput
-                  value={threadQuery}
-                  onChangeText={setThreadQuery}
-                  placeholder="Search..."
-                  placeholderTextColor={colors.textSecondary}
-                  style={{ color: colors.text, flex: 1, fontSize: 16 }}
-                />
-              </View>
-            )}
-            <ScrollView contentContainerStyle={{ padding: 8, gap: 8 }}>
-              {filteredThreads.map((t) => {
-                const isActive = t.counterpartyEmail === selectedThreadEmail;
-                return (
-                  <TouchableOpacity
-                    key={t.counterpartyEmail}
-                    onPress={() => setSelectedThreadEmail(t.counterpartyEmail)}
-                    style={[
-                      styles.threadItem,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: isActive
-                          ? colors.background
-                          : colors.surface,
-                      },
-                    ]}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      style={{ color: colors.text, fontWeight: '700' }}
-                    >
-                      {t.displayName || t.counterpartyEmail || '(No name)'}
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      style={{ color: colors.textSecondary }}
-                    >
-                      {t.lastSubject || ''}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
-                      {new Date(t.lastMessageTime).toLocaleString()}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
         )}
-
-        <View style={[styles.conversation, { borderColor: colors.border }]}>
-          {selectedThreadEmail ? (
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
-              {messages.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={{
-                    alignSelf:
-                      m.direction === 'sent' ? 'flex-end' : 'flex-start',
-                    maxWidth: '80%',
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    borderRadius: 12,
-                    padding: 10,
-                  }}
-                  onPress={() => setSelectedEmailId(m.id)}
-                >
-                  <Text
-                    style={{ color: colors.text, fontWeight: '600' }}
-                    numberOfLines={2}
-                  >
-                    {m.subject || '(No subject)'}
-                  </Text>
-                  <View style={{ marginTop: 4 }}>
-                    <MessageContent html={m.body_html} text={m.body_text} />
-                  </View>
-                  <Text
-                    style={{
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                      marginTop: 6,
-                    }}
-                  >
-                    {new Date(m.created_at).toLocaleString()} • {m.direction}
-                    {m.direction === 'received' ? ' • replied' : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          ) : (
-            <View
-              style={{
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: colors.textSecondary }}>
-                Select a conversation
-              </Text>
-            </View>
-          )}
-        </View>
+        <Text style={[styles.title, { color: colors.text }]}>
+          {selectedThreadEmail ? 'Conversation' : 'Inbox'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setShowComposer(true)}
+          style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Compose</Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Main Content */}
+      {selectedThreadEmail ? (
+        <EmailThreadDetail
+          counterpartyEmail={selectedThreadEmail}
+          displayName={selectedThreadName}
+          onBack={handleBackToThreads}
+        />
+      ) : (
+        <EmailThreadsView onSelectThread={handleSelectThread} />
+      )}
+
+      {/* Compose Modal */}
       <Modal
         visible={showComposer}
         animationType="slide"
-        onRequestClose={() => setShowComposer(false)}
+        onRequestClose={() => {
+          setShowComposer(false);
+          setComposerDraftId(null);
+        }}
       >
         <SafeAreaView
           style={[styles.container, { backgroundColor: colors.background }]}
         >
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: colors.text }]}>Compose</Text>
-            <TouchableOpacity onPress={() => setShowComposer(false)}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {composerDraftId ? 'Edit Draft' : 'Compose'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowComposer(false);
+                setComposerDraftId(null);
+              }}
+            >
               <Text style={{ color: colors.primary, fontWeight: '700' }}>
                 Close
               </Text>
             </TouchableOpacity>
           </View>
-          <ScrollView 
-            style={{ flex: 1 }} 
+          <ScrollView
+            style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -252,17 +161,18 @@ export default function EmailsInboxScreen() {
               fullScreen
               to={selectedThreadEmail || ''}
               suggestedRecipients={suggestionCandidates}
+              draftId={composerDraftId}
+              onSent={() => {
+                setShowComposer(false);
+                setComposerDraftId(null);
+              }}
+              onDraftSaved={(id) => {
+                setComposerDraftId(id);
+              }}
             />
           </ScrollView>
         </SafeAreaView>
       </Modal>
-
-      {selectedEmailId && (
-        <EmailDetail
-          emailId={selectedEmailId}
-          onClose={() => setSelectedEmailId(null)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -274,25 +184,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
-  title: { fontSize: 24, fontWeight: '800' },
-  headerBtn: {
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  title: { fontSize: 24, fontWeight: '800', flex: 1 },
+  backButton: {
+    padding: 4,
+  },
+  primaryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 10,
   },
-  primaryBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  bodyRow: { flex: 1, flexDirection: 'row' },
-  sidebar: { width: 300, borderRightWidth: 1 },
-  searchBox: {
-    margin: 8,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    justifyContent: 'center',
-  },
-  threadItem: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 2 },
-  conversation: { flex: 1, borderLeftWidth: 0 },
 });

@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  SafeAreaView,
+} from 'react-native';
 import { MapView, Marker, Region } from './PlatformMapView';
 import * as Location from 'expo-location';
 import { X, MapPin, Navigation } from 'lucide-react-native';

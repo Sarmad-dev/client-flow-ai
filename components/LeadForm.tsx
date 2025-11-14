@@ -20,7 +20,6 @@ import { LeadFormData, leadSchema } from '@/lib/validation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Region } from 'react-native-maps';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface LeadFormProps {
   visible: boolean;
@@ -273,9 +272,7 @@ export function LeadForm({
       presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Add Lead</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -800,7 +797,7 @@ export function LeadForm({
             )}
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
