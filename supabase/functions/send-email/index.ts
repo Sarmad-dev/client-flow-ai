@@ -10,6 +10,9 @@ type SendEmailRequest = {
   text?: string;
   client_id?: string | null;
   lead_id?: string | null;
+  signature_used?: string | null;
+  in_reply_to_message_id?: string | null;
+  references?: string[] | null;
 };
 
 const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY') ?? '';
@@ -84,83 +87,37 @@ async function sendWithSendGrid(args: {
   headers?: Record<string, string>;
   customArgs?: Record<string, string>;
   user?: any;
+  in_reply_to_message_id?: string | null;
+  references?: string[] | null;
 }) {
-  // Validate required fields
-  if (!args.to || !isValidEmail(args.to)) {
-    throw new Error('Invalid recipient email address');
-  }
-
-  if (!args.subject || args.subject.trim().length === 0) {
-    throw new Error('Subject is required');
-  }
-
-  if (!args.html && !args.text) {
-    throw new Error('Either HTML or text content is required');
-  }
-
-  // Create dynamic sender email using user identifier + domain
-  const senderEmail = createUserEmail(args.fromIdentifier, SENDGRID_DOMAIN);
-  const senderName = getUserDisplayName(args.user, args.fromName);
-
-  // Validate sender email format
-  if (!isValidEmail(senderEmail)) {
-    throw new Error(`Invalid sender email format: ${senderEmail}`);
-  }
-
-  // Ensure custom_args values are strings (SendGrid requirement)
-  const customArgs = args.customArgs || {};
-  const stringCustomArgs: Record<string, string> = {};
-  for (const [key, value] of Object.entries(customArgs)) {
-    stringCustomArgs[key] = String(value);
-  }
-
-  const payload = {
-    personalizations: [
-      {
-        to: [{ email: args.to }],
-        subject: args.subject,
-        custom_args: stringCustomArgs,
-      },
-    ],
-    from: {
-      email: senderEmail,
-      name: senderName,
-    },
-    content: [] as Array<{ type: string; value: string }>,
-    tracking_settings: {
-      click_tracking: { enable: true, enable_text: false },
-      open_tracking: { enable: true },
-      subscription_tracking: { enable: false },
-    },
-    mail_settings: {
-      sandbox_mode: { enable: false },
-    },
-  };
-
-  // Set reply-to to the same dynamic sender email for proper reply tracking
-  payload.reply_to = { email: senderEmail };
-
-  // Add custom headers if provided
+  const form = new URLSearchParams();
+  form.append('from', `${args.from} <${args.from}@${MAILGUN_DOMAIN}>`);
+  form.append('to', args.to);
+  form.append('subject', args.subject);
+  if (args.html) form.append('html', args.html);
+  if (args.text) form.append('text', args.text);
+  // Enable tracking
+  form.append('o:tracking', 'yes');
+  form.append('o:tracking-opens', 'yes');
+  form.append('o:tracking-clicks', 'yes');
+  if (args.replyTo) form.append('h:Reply-To', args.replyTo);
   if (args.headers) {
     payload.headers = args.headers;
+  } else {
+    payload.headers = {};
   }
 
-  // Add content in correct order: text/plain first, then text/html
-  if (args.text) {
-    payload.content.push({ type: 'text/plain', value: args.text });
-  }
-  if (args.html) {
-    payload.content.push({ type: 'text/html', value: args.html });
+  // Add threading headers for email replies
+  if (args.in_reply_to_message_id) {
+    payload.headers['In-Reply-To'] = args.in_reply_to_message_id;
   }
 
-  // Ensure at least one content type is present
-  if (payload.content.length === 0) {
-    payload.content.push({ type: 'text/plain', value: args.subject });
+  if (args.references && args.references.length > 0) {
+    // References header should be a space-separated list of message IDs
+    payload.headers['References'] = args.references.join(' ');
   }
 
-  console.log('SendGrid payload:', JSON.stringify(payload, null, 2));
-
-  const res = await fetch(`${SENDGRID_BASE_URL}/mail/send`, {
+  const res = await fetch(`${MAILGUN_BASE_URL}/v3/${MAILGUN_DOMAIN}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${SENDGRID_API_KEY}`,
@@ -262,6 +219,9 @@ async function handler(req: Request): Promise<Response> {
           lead_id: body.lead_id || '',
         },
         user,
+
+        in_reply_to_message_id: body.in_reply_to_message_id,
+        references: body.references,
       });
       console.log('SendGrid response:', sg);
     } catch (sendGridError) {
@@ -295,6 +255,9 @@ async function handler(req: Request): Promise<Response> {
           sender_email: createUserEmail(userIdentifier, SENDGRID_DOMAIN),
           recipient_email: body.to,
           status: 'sent',
+          signature_used: body.signature_used ?? null,
+          in_reply_to_message_id: body.in_reply_to_message_id ?? null,
+          references: body.references ?? null,
         });
 
       if (insertError) {
@@ -312,17 +275,20 @@ async function handler(req: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         id: sg.id,
+        body_text: body.text ?? null,
+        body_html: body.html ?? null,
+        sender_email: body.from,
+        recipient_email: body.to,
         status: 'sent',
-        message: 'Email sent successfully',
-      }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      })
     );
-  } catch (err: any) {
+  } catch (sendGridError) {
+    console.error('SendGrid error:', sendGridError);
     return new Response(
-      JSON.stringify({ error: String(err?.message ?? err) }),
+      JSON.stringify({
+        error: 'Failed to send email',
+        details: String(sendGridError?.message ?? sendGridError),
+      }),
       {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
