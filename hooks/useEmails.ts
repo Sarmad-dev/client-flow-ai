@@ -85,6 +85,9 @@ export function useSendEmail() {
       client_id?: string | null;
       lead_id?: string | null;
       from?: string; // Optional custom display name
+      signature_used?: string | null;
+      in_reply_to_message_id?: string | null;
+      references?: string[] | null;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
@@ -95,6 +98,9 @@ export function useSendEmail() {
           client_id: payload.client_id,
           lead_id: payload.lead_id,
           from: payload.from, // This will be used as display name, not email address
+          signature_used: payload.signature_used,
+          in_reply_to_message_id: payload.in_reply_to_message_id,
+          references: payload.references,
         },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
