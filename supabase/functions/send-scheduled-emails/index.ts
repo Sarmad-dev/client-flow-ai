@@ -10,7 +10,6 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // Maximum number of retry attempts for failed emails
 const MAX_RETRY_ATTEMPTS = 3;
 
-<<<<<<< HEAD
 // Batch size for processing scheduled emails
 const BATCH_SIZE = 50;
 
@@ -73,27 +72,8 @@ async function processScheduledEmail(
       return { success: false, error: errorMsg };
     }
 
-    // Generate access token for the user
-    const { data: session, error: sessionErr } =
-      await supabaseAdmin.auth.admin.generateAccessToken(email.user_id);
-
-    if (sessionErr || !session) {
-      const errorMsg = `Failed to generate session: ${
-        sessionErr?.message || 'Unknown error'
-      }`;
-      console.error(
-        JSON.stringify({
-          level: 'error',
-          message: errorMsg,
-          emailId: email.id,
-          userId: email.user_id,
-          timestamp: new Date().toISOString(),
-        })
-      );
-      return { success: false, error: errorMsg };
-    }
-
-    // Invoke send-email function
+    // Invoke send-email function with service role key
+    // The send-email function will handle authentication and updating the record
     const { data: sendResult, error: funcErr } =
       await supabaseAdmin.functions.invoke('send-email', {
         body: {
@@ -105,9 +85,11 @@ async function processScheduledEmail(
           lead_id: email.lead_id,
           signature_used: email.signature_used,
           from: user.user?.email?.split('@')[0] || 'scheduled',
+          user_id: email.user_id, // Pass user_id for proper attribution
+          email_comm_id: email.id, // Pass email ID to update existing record
         },
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         },
       });
 
@@ -157,139 +139,64 @@ async function processScheduledEmail(
 }
 
 /**
- * Update email status after processing
+ * Handle failed email with retry logic
  */
-async function updateEmailStatus(
+async function handleFailedEmail(
   emailId: string,
-  success: boolean,
   retryCount: number,
   error?: string
 ): Promise<void> {
   try {
-    if (success) {
-      // Mark as sent and clear scheduling flags
+    // Check if we should retry or mark as failed
+    if (retryCount >= MAX_RETRY_ATTEMPTS) {
+      // Max retries reached, mark as failed
       await supabaseAdmin
         .from('email_communications')
         .update({
-          status: 'sent',
+          status: 'failed',
           is_scheduled: false,
           scheduled_at: null,
         })
         .eq('id', emailId);
-    } else {
-      // Check if we should retry or mark as failed
-      if (retryCount >= MAX_RETRY_ATTEMPTS) {
-        // Max retries reached, mark as failed
-        await supabaseAdmin
-          .from('email_communications')
-          .update({
-            status: 'failed',
-            is_scheduled: false,
-            scheduled_at: null,
-          })
-          .eq('id', emailId);
-=======
-  for (const row of data || []) {
-    try {
-      // Get user session for the send-email function
-      const { data: user, error: userErr } =
-        await supabaseAdmin.auth.admin.getUserById(row.user_id);
-      if (userErr || !user) {
-        console.error('Failed to get user for scheduled email:', userErr);
-        continue;
-      }
 
-      // Create a temporary session for the user to send the email
-      const { data: session, error: sessionErr } =
-        await supabaseAdmin.auth.admin.generateAccessToken(row.user_id);
-      if (sessionErr || !session) {
-        console.error(
-          'Failed to generate session for scheduled email:',
-          sessionErr
-        );
-        continue;
-      }
-
-      const { error: funcErr } = await supabaseAdmin.functions.invoke(
-        'send-email',
-        {
-          body: {
-            to: row.recipient_email,
-            subject: row.subject,
-            html: row.body_html,
-            text: row.body_text,
-            from: user.user?.email?.split('@')[0] || 'scheduled',
-          },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
+      console.log(
+        JSON.stringify({
+          level: 'warn',
+          message: 'Email marked as failed after max retries',
+          emailId,
+          retryCount,
+          error,
+          timestamp: new Date().toISOString(),
+        })
       );
+    } else {
+      // Schedule for retry with exponential backoff
+      const retryDelayMinutes = Math.pow(2, retryCount) * 5; // 5, 10, 20 minutes
+      const nextRetryAt = new Date(Date.now() + retryDelayMinutes * 60 * 1000);
 
-      if (!funcErr) {
-        await supabaseAdmin
-          .from('email_communications')
-          .update({ status: 'sent', scheduled_at: null })
-          .eq('id', row.id);
-      } else {
-        console.error('Failed to send scheduled email:', funcErr);
-        // Mark as failed after 3 attempts
-        await supabaseAdmin
-          .from('email_communications')
-          .update({
-            status: 'failed',
-            scheduled_at: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', row.id);
-      }
-    } catch (e) {
-      console.error('Error processing scheduled email:', e);
-    }
-  }
->>>>>>> parent of b4f42cb (Implemented detailed tasks)
+      await supabaseAdmin
+        .from('email_communications')
+        .update({
+          scheduled_at: nextRetryAt.toISOString(),
+        })
+        .eq('id', emailId);
 
-        console.log(
-          JSON.stringify({
-            level: 'warn',
-            message: 'Email marked as failed after max retries',
-            emailId,
-            retryCount,
-            error,
-            timestamp: new Date().toISOString(),
-          })
-        );
-      } else {
-        // Schedule for retry with exponential backoff
-        const retryDelayMinutes = Math.pow(2, retryCount) * 5; // 5, 10, 20 minutes
-        const nextRetryAt = new Date(
-          Date.now() + retryDelayMinutes * 60 * 1000
-        );
-
-        await supabaseAdmin
-          .from('email_communications')
-          .update({
-            scheduled_at: nextRetryAt.toISOString(),
-          })
-          .eq('id', emailId);
-
-        console.log(
-          JSON.stringify({
-            level: 'info',
-            message: 'Email scheduled for retry',
-            emailId,
-            retryCount: retryCount + 1,
-            nextRetryAt: nextRetryAt.toISOString(),
-            timestamp: new Date().toISOString(),
-          })
-        );
-      }
+      console.log(
+        JSON.stringify({
+          level: 'info',
+          message: 'Email scheduled for retry',
+          emailId,
+          retryCount: retryCount + 1,
+          nextRetryAt: nextRetryAt.toISOString(),
+          timestamp: new Date().toISOString(),
+        })
+      );
     }
   } catch (e) {
     console.error(
       JSON.stringify({
         level: 'error',
-        message: 'Failed to update email status',
+        message: 'Failed to handle failed email',
         emailId,
         error: e instanceof Error ? e.message : String(e),
         timestamp: new Date().toISOString(),
@@ -385,21 +292,17 @@ async function handler(): Promise<Response> {
 
       if (processResult.success) {
         result.sent++;
+        // Email status is updated by send-email function
       } else {
         result.failed++;
         result.errors.push({
           id: email.id,
           error: processResult.error || 'Unknown error',
         });
-      }
 
-      // Update email status
-      await updateEmailStatus(
-        email.id,
-        processResult.success,
-        retryCount,
-        processResult.error
-      );
+        // Handle retry logic for failed emails
+        await handleFailedEmail(email.id, retryCount, processResult.error);
+      }
     }
 
     const duration = Date.now() - startTime;

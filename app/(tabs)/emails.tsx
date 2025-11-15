@@ -129,6 +129,48 @@ export default function EmailsScreen() {
               Create and manage email templates
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/email-sequences' as any);
+              }
+            }}
+            style={[
+              styles.navCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+            >
+              Sequences
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              Create and manage automated email sequences
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/email-sequence-analytics' as any);
+              }
+            }}
+            style={[
+              styles.navCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+            >
+              Sequence Analytics
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              View performance metrics for email sequences
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 

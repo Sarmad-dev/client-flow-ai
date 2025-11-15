@@ -45,10 +45,8 @@ import {
   Building2,
   FileText,
   File,
-  CheckCircle2,
   Clock,
 } from 'lucide-react-native';
-import { base64 } from 'zod';
 
 interface EmailComposerProps {
   to?: string;
@@ -699,6 +697,19 @@ export default function EmailComposer({
   const handleSchedule = async (selectedDate: Date) => {
     if (!canSend) return;
 
+    // Validate selectedDate
+    if (
+      !selectedDate ||
+      !(selectedDate instanceof Date) ||
+      isNaN(selectedDate.getTime())
+    ) {
+      showAlert({
+        title: 'Invalid Date',
+        message: 'Please select a valid date and time for scheduling.',
+      });
+      return;
+    }
+
     // Validate attachments before scheduling
     if (attachments.length > 5) {
       showAlert({
@@ -849,6 +860,7 @@ export default function EmailComposer({
         title: 'Schedule Failed',
         message: errorMessage,
         confirmText: 'OK',
+        cancelText: 'Cancel',
       });
     }
   };
@@ -1653,7 +1665,7 @@ export default function EmailComposer({
         <PlatformDateTimePicker
           value={scheduledAt || new Date()}
           mode="datetime"
-          onChange={(date) => {
+          onChange={(event, date) => {
             if (date) {
               handleSchedule(date);
             } else {

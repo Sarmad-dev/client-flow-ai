@@ -197,15 +197,16 @@
   - Implement real-time updates via Supabase subscriptions
   - _Requirements: 4.5, 4.7_
 
-- [ ] 8. Email Sequences and Campaigns
-- [ ] 8.1 Create sequence database operations
+- [x] 8. Email Sequences and Campaigns
+
+- [x] 8.1 Create sequence database operations
 
   - Implement useEmailSequences hook for sequence CRUD
   - Add sequence_enrollments table operations
   - Create useSequenceEnrollments hook
   - _Requirements: 3.1, 3.4_
 
-- [ ] 8.2 Build EmailSequencesManager component
+- [x] 8.2 Build EmailSequencesManager component
 
   - Create sequence list view with status indicators
   - Implement sequence creation form
@@ -213,7 +214,7 @@
   - Build step configuration UI (delay, template, content)
   - _Requirements: 3.1, 3.2_
 
-- [ ] 8.3 Implement sequence activation and validation
+- [x] 8.3 Implement sequence activation and validation
 
   - Add sequence validation before activation
   - Check all steps have valid content
@@ -221,14 +222,14 @@
   - Implement activation toggle
   - _Requirements: 3.3_
 
-- [ ] 8.4 Create sequence enrollment functionality
+- [x] 8.4 Create sequence enrollment functionality
 
   - Build enrollment UI for adding contacts to sequences
   - Implement bulk enrollment from client/lead lists
   - Add enrollment status tracking
   - _Requirements: 3.4_
 
-- [ ] 8.5 Build process-email-sequences Edge Function
+- [x] 8.5 Build process-email-sequences Edge Function
 
   - Create new Edge Function to process active sequences
   - Implement scheduling logic based on delay hours
@@ -236,21 +237,21 @@
   - Handle sequence completion and unenrollment
   - _Requirements: 3.5_
 
-- [ ] 8.6 Implement sequence reply handling
+- [x] 8.6 Implement sequence reply handling
 
   - Add webhook logic to detect replies to sequence emails
   - Auto-unenroll contacts who reply
   - Update sequence_enrollments status
   - _Requirements: 3.6_
 
-- [ ] 8.7 Add sequence unsubscribe handling
+- [x] 8.7 Add sequence unsubscribe handling
 
   - Implement unsubscribe detection in webhooks
   - Stop all active sequences for unsubscribed contacts
   - Add to suppression list
   - _Requirements: 3.7_
 
-- [ ] 8.8 Create sequence analytics view
+- [x] 8.8 Create sequence analytics view
 
   - Display enrollment count per sequence
   - Calculate and show completion rate

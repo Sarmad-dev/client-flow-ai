@@ -30,7 +30,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
       title: opts.title,
       message: opts.message,
       confirmText: opts.confirmText || 'OK',
-      cancelText: opts.cancelText || '',
+      cancelText: opts.cancelText || 'Cancel',
       onConfirm: opts.onConfirm,
       onCancel: opts.onCancel,
     });

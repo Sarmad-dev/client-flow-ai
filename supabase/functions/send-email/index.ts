@@ -13,6 +13,8 @@ type SendEmailRequest = {
   signature_used?: string | null;
   in_reply_to_message_id?: string | null;
   references?: string[] | null;
+  user_id?: string | null; // For scheduled/sequence emails
+  email_comm_id?: string | null; // For updating existing scheduled emails
 };
 
 const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY') ?? '';
@@ -90,17 +92,42 @@ async function sendWithSendGrid(args: {
   in_reply_to_message_id?: string | null;
   references?: string[] | null;
 }) {
-  const form = new URLSearchParams();
-  form.append('from', `${args.from} <${args.from}@${MAILGUN_DOMAIN}>`);
-  form.append('to', args.to);
-  form.append('subject', args.subject);
-  if (args.html) form.append('html', args.html);
-  if (args.text) form.append('text', args.text);
-  // Enable tracking
-  form.append('o:tracking', 'yes');
-  form.append('o:tracking-opens', 'yes');
-  form.append('o:tracking-clicks', 'yes');
-  if (args.replyTo) form.append('h:Reply-To', args.replyTo);
+  const fromEmail = createUserEmail(args.fromIdentifier, SENDGRID_DOMAIN);
+  const displayName = getUserDisplayName(args.user, args.fromName);
+
+  const payload: any = {
+    personalizations: [
+      {
+        to: [{ email: args.to }],
+        subject: args.subject,
+      },
+    ],
+    from: {
+      email: fromEmail,
+      name: displayName,
+    },
+    content: [],
+    tracking_settings: {
+      click_tracking: { enable: true },
+      open_tracking: { enable: true },
+    },
+  };
+
+  // Add content
+  if (args.text) {
+    payload.content.push({
+      type: 'text/plain',
+      value: args.text,
+    });
+  }
+  if (args.html) {
+    payload.content.push({
+      type: 'text/html',
+      value: args.html,
+    });
+  }
+
+  // Add custom headers
   if (args.headers) {
     payload.headers = args.headers;
   } else {
@@ -117,7 +144,12 @@ async function sendWithSendGrid(args: {
     payload.headers['References'] = args.references.join(' ');
   }
 
-  const res = await fetch(`${MAILGUN_BASE_URL}/v3/${MAILGUN_DOMAIN}/messages`, {
+  // Add custom args for tracking
+  if (args.customArgs) {
+    payload.custom_args = args.customArgs;
+  }
+
+  const res = await fetch(`${SENDGRID_BASE_URL}/mail/send`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${SENDGRID_API_KEY}`,
@@ -163,12 +195,34 @@ async function handler(req: Request): Promise<Response> {
   }
   const token = authHeader.replace('Bearer ', '');
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !user) {
-    return unauthorized('Invalid user');
+  // Check if this is a service role request
+  const isServiceRole = token === SUPABASE_SERVICE_ROLE_KEY;
+
+  let user: any = null;
+
+  if (isServiceRole) {
+    // For service role requests (scheduled/sequence emails), get user from body
+    const tempBody = await req.clone().json();
+    if (tempBody.user_id) {
+      const { data: userData, error: userError } =
+        await supabaseAdmin.auth.admin.getUserById(tempBody.user_id);
+      if (userError || !userData) {
+        return unauthorized('Invalid user_id');
+      }
+      user = userData.user;
+    } else {
+      return badRequest('user_id required for service role requests');
+    }
+  } else {
+    // For regular user requests, get user from token
+    const {
+      data: { user: tokenUser },
+      error: userError,
+    } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !tokenUser) {
+      return unauthorized('Invalid user');
+    }
+    user = tokenUser;
   }
 
   let body: SendEmailRequest;
@@ -185,7 +239,11 @@ async function handler(req: Request): Promise<Response> {
   // Create user-specific sender identifier
   const userIdentifier =
     body.from || user.email?.split('@')[0] || user.id.substring(0, 8);
-  const emailCommId = crypto.randomUUID();
+  const senderEmail = createUserEmail(userIdentifier, SENDGRID_DOMAIN);
+
+  // Use provided email_comm_id for scheduled emails, or generate new one
+  const emailCommId = body.email_comm_id || crypto.randomUUID();
+  const isScheduledEmail = !!body.email_comm_id;
 
   try {
     // Suppression check
@@ -238,36 +296,57 @@ async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // Try to insert into database, but don't fail the entire request if this fails
+    // Update or insert email communication record
     try {
-      const { error: insertError } = await supabaseAdmin
-        .from('email_communications')
-        .insert({
-          id: emailCommId,
-          user_id: user.id,
-          client_id: body.client_id ?? null,
-          lead_id: body.lead_id ?? null,
-          sendgrid_message_id: sg.id,
-          direction: 'sent',
-          subject: body.subject,
-          body_text: body.text ?? null,
-          body_html: body.html ?? null,
-          sender_email: createUserEmail(userIdentifier, SENDGRID_DOMAIN),
-          recipient_email: body.to,
-          status: 'sent',
-          signature_used: body.signature_used ?? null,
-          in_reply_to_message_id: body.in_reply_to_message_id ?? null,
-          references: body.references ?? null,
-        });
+      if (isScheduledEmail) {
+        // Update existing scheduled email record
+        const { error: updateError } = await supabaseAdmin
+          .from('email_communications')
+          .update({
+            sendgrid_message_id: sg.id,
+            sender_email: senderEmail,
+            status: 'sent',
+            is_scheduled: false,
+            scheduled_at: null,
+            sent_at: new Date().toISOString(),
+          })
+          .eq('id', emailCommId);
 
-      if (insertError) {
-        console.error('Database insertion error:', insertError);
-        // Log the error but don't fail the request since email was sent successfully
+        if (updateError) {
+          console.error('Database update error:', updateError);
+        } else {
+          console.log('Scheduled email record updated successfully');
+        }
       } else {
-        console.log('Email communication record inserted successfully');
+        // Insert new email record
+        const { error: insertError } = await supabaseAdmin
+          .from('email_communications')
+          .insert({
+            id: emailCommId,
+            user_id: user.id,
+            client_id: body.client_id ?? null,
+            lead_id: body.lead_id ?? null,
+            sendgrid_message_id: sg.id,
+            direction: 'sent',
+            subject: body.subject,
+            body_text: body.text ?? null,
+            body_html: body.html ?? null,
+            sender_email: senderEmail,
+            recipient_email: body.to,
+            status: 'sent',
+            signature_used: body.signature_used ?? null,
+            in_reply_to_message_id: body.in_reply_to_message_id ?? null,
+            references: body.references ?? null,
+          });
+
+        if (insertError) {
+          console.error('Database insertion error:', insertError);
+        } else {
+          console.log('Email communication record inserted successfully');
+        }
       }
     } catch (dbError) {
-      console.error('Database insertion failed:', dbError);
+      console.error('Database operation failed:', dbError);
       // Log the error but don't fail the request since email was sent successfully
     }
 

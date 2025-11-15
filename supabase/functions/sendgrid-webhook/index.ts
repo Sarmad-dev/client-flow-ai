@@ -131,7 +131,7 @@ async function handler(req: Request): Promise<Response> {
           // Mark the latest sent email to this sender as replied
           const { data: lastSent, error: fetchErr } = await supabaseAdmin
             .from('email_communications')
-            .select('id')
+            .select('id, sequence_enrollment_id')
             .eq('user_id', profile.user_id)
             .eq('direction', 'sent')
             .eq('recipient_email', sender)
@@ -144,7 +144,34 @@ async function handler(req: Request): Promise<Response> {
               .from('email_communications')
               .update({ replied_at: nowIso })
               .eq('id', lastSent.id);
+
+            // If this was part of a sequence, unenroll the contact
+            if (lastSent.sequence_enrollment_id) {
+              await supabaseAdmin
+                .from('sequence_enrollments')
+                .update({ status: 'cancelled' })
+                .eq('id', lastSent.sequence_enrollment_id)
+                .eq('status', 'active');
+
+              console.log(
+                JSON.stringify({
+                  level: 'info',
+                  message: 'Contact unenrolled from sequence due to reply',
+                  enrollmentId: lastSent.sequence_enrollment_id,
+                  contactEmail: sender,
+                  timestamp: nowIso,
+                })
+              );
+            }
           }
+
+          // Also unenroll from any other active sequences for this contact
+          await supabaseAdmin
+            .from('sequence_enrollments')
+            .update({ status: 'cancelled' })
+            .eq('user_id', profile.user_id)
+            .eq('contact_email', sender.toLowerCase())
+            .eq('status', 'active');
         }
         continue;
       }
@@ -170,6 +197,40 @@ async function handler(req: Request): Promise<Response> {
         case 'bounce':
         case 'dropped':
           update.status = 'failed';
+
+          // Handle hard bounces - add to suppression list and stop sequences
+          if (
+            event.type === 'bounce' &&
+            event.bounce_classification === 'hard'
+          ) {
+            if (userId && event.email) {
+              await supabaseAdmin.from('suppression_list').upsert({
+                user_id: userId,
+                email: event.email,
+                reason: 'hard_bounce',
+                created_at: nowIso,
+              });
+
+              // Stop all active sequences for this contact
+              await supabaseAdmin
+                .from('sequence_enrollments')
+                .update({ status: 'cancelled' })
+                .eq('user_id', userId)
+                .eq('contact_email', event.email.toLowerCase())
+                .eq('status', 'active');
+
+              console.log(
+                JSON.stringify({
+                  level: 'info',
+                  message:
+                    'Hard bounce detected - contact suppressed and unenrolled',
+                  userId,
+                  contactEmail: event.email,
+                  timestamp: nowIso,
+                })
+              );
+            }
+          }
           break;
         case 'spamreport':
           update.status = 'complained';
@@ -183,6 +244,25 @@ async function handler(req: Request): Promise<Response> {
               reason: 'unsubscribe',
               created_at: nowIso,
             });
+
+            // Stop all active sequences for this contact
+            await supabaseAdmin
+              .from('sequence_enrollments')
+              .update({ status: 'cancelled' })
+              .eq('user_id', userId)
+              .eq('contact_email', event.email.toLowerCase())
+              .eq('status', 'active');
+
+            console.log(
+              JSON.stringify({
+                level: 'info',
+                message:
+                  'Contact unsubscribed and unenrolled from all sequences',
+                userId,
+                contactEmail: event.email,
+                timestamp: nowIso,
+              })
+            );
           }
           break;
         default:

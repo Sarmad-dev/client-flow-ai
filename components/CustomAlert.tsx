@@ -53,7 +53,7 @@ export const CustomAlert = ({
               onPress={onClose}
               activeOpacity={0.8}
             >
-              <Text style={[styles.buttonText, { color: colors.text }]}>
+              <Text style={[styles.buttonText, { color: colors.primary }]}>
                 {cancelText}
               </Text>
             </TouchableOpacity>
