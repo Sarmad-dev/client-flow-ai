@@ -70,6 +70,27 @@ export default function EmailsScreen() {
           <TouchableOpacity
             onPress={() => {
               if (guardEmailSending('client', user?.id ?? '')) {
+                router.push('/(tabs)/emails-search' as any);
+              }
+            }}
+            style={[
+              styles.navCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text
+              style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+            >
+              Search & Filter
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              Search emails with advanced filters and saved presets
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardEmailSending('client', user?.id ?? '')) {
                 router.push('/(tabs)/email-drafts' as any);
               }
             }}

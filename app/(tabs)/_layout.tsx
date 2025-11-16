@@ -370,6 +370,8 @@ export default function TabLayout() {
         <Tabs.Screen name="email-signatures" options={{ href: null }} />
         <Tabs.Screen name="email-sequences" options={{ href: null }} />
         <Tabs.Screen name="email-sequence-analytics" options={{ href: null }} />
+        <Tabs.Screen name="email-deliverability" options={{ href: null }} />
+        <Tabs.Screen name="email-suppression" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen name="settings" options={{ href: null }} />
         <Tabs.Screen name="templates" options={{ href: null }} />

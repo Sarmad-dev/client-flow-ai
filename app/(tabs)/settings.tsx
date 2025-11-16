@@ -17,6 +17,7 @@ import {
   LogOut,
   ChevronRight,
   Mail,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -72,6 +73,18 @@ export default function SettingsScreen() {
           title: 'Email Signatures',
           subtitle: 'Manage your email signatures',
           onPress: () => router.push('/(tabs)/email-signatures'),
+        },
+        {
+          icon: Shield,
+          title: 'Deliverability',
+          subtitle: 'Monitor email delivery health',
+          onPress: () => router.push('/(tabs)/email-deliverability'),
+        },
+        {
+          icon: AlertCircle,
+          title: 'Suppression List',
+          subtitle: 'Manage blocked email addresses',
+          onPress: () => router.push('/(tabs)/email-suppression'),
         },
       ],
     },

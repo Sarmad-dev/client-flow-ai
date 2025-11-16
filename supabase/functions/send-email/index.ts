@@ -246,15 +246,28 @@ async function handler(req: Request): Promise<Response> {
   const isScheduledEmail = !!body.email_comm_id;
 
   try {
-    // Suppression check
+    // Check suppression list to prevent sending to suppressed addresses
+    // Addresses are automatically added to suppression list on hard bounces
     const { data: suppress } = await supabaseAdmin
       .from('suppression_list')
-      .select('id')
+      .select('id, reason')
       .eq('user_id', user.id)
-      .eq('email', body.to)
+      .eq('email', body.to.toLowerCase())
       .maybeSingle();
     if (suppress) {
-      return badRequest('Recipient is suppressed');
+      console.log(
+        JSON.stringify({
+          level: 'info',
+          message: 'Email blocked - recipient is suppressed',
+          userId: user.id,
+          recipientEmail: body.to,
+          suppressionReason: suppress.reason,
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return badRequest(
+        `Recipient is suppressed (${suppress.reason || 'unknown reason'})`
+      );
     }
 
     console.log('Attempting to send email via SendGrid...');

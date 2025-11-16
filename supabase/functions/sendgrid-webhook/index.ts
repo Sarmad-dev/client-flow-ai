@@ -198,15 +198,17 @@ async function handler(req: Request): Promise<Response> {
         case 'dropped':
           update.status = 'failed';
 
+          // Determine bounce type and reason
+          const bounceType = event.bounce_classification || 'soft';
+          const bounceReason =
+            event.reason || event.response || 'Unknown bounce reason';
+
           // Handle hard bounces - add to suppression list and stop sequences
-          if (
-            event.type === 'bounce' &&
-            event.bounce_classification === 'hard'
-          ) {
+          if (bounceType === 'hard') {
             if (userId && event.email) {
               await supabaseAdmin.from('suppression_list').upsert({
                 user_id: userId,
-                email: event.email,
+                email: event.email.toLowerCase(),
                 reason: 'hard_bounce',
                 created_at: nowIso,
               });
@@ -226,6 +228,7 @@ async function handler(req: Request): Promise<Response> {
                     'Hard bounce detected - contact suppressed and unenrolled',
                   userId,
                   contactEmail: event.email,
+                  bounceReason,
                   timestamp: nowIso,
                 })
               );
@@ -307,18 +310,36 @@ async function handler(req: Request): Promise<Response> {
           .maybeSingle();
 
         if (emailComm?.id) {
+          // Build metadata object with bounce-specific information
+          const eventMetadata: any = {
+            sg_event_id: event.sg_event_id,
+            sg_message_id: messageId,
+            url: event.url,
+            useragent: event.useragent,
+            ip: event.ip,
+          };
+
+          // Add bounce-specific metadata
+          if (eventType === 'bounce' || eventType === 'dropped') {
+            eventMetadata.bounce_classification =
+              event.bounce_classification || 'soft';
+            eventMetadata.reason = event.reason || null;
+            eventMetadata.response = event.response || null;
+            eventMetadata.status = event.status || null;
+            eventMetadata.type = event.type || null;
+          }
+
+          // Add spam complaint metadata
+          if (eventType === 'spamreport') {
+            eventMetadata.asm_group_id = event.asm_group_id || null;
+          }
+
           await supabaseAdmin.from('email_events').insert({
             user_id: userId,
             email_communication_id: emailComm.id,
             event_type: eventType,
             occurred_at: eventTimestamp,
-            metadata: {
-              sg_event_id: event.sg_event_id,
-              sg_message_id: messageId,
-              url: event.url,
-              useragent: event.useragent,
-              ip: event.ip,
-            },
+            metadata: eventMetadata,
           });
         }
       }

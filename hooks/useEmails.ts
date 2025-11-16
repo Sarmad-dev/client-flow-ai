@@ -22,6 +22,15 @@ export interface EmailRecord {
   in_reply_to_message_id: string | null;
   references: string[] | null;
   created_at: string;
+  is_draft: boolean;
+  is_scheduled: boolean;
+  scheduled_at: string | null;
+  is_read: boolean;
+  thread_id: string | null;
+  sequence_enrollment_id: string | null;
+  signature_used: string | null;
+  attachment_count: number;
+  total_attachment_size: number;
 }
 
 export function useEmailStats() {
