@@ -7,6 +7,23 @@
     "icon": "./assets/images/app-icon.png",
     "scheme": "nexasuit",
     "userInterfaceStyle": "automatic",
+    "deepLinking": {
+      "enabled": true,
+      "prefixes": ["nexasuit://", "https://nexasuit.app"],
+      "paths": {
+        "emails": "(tabs)/emails",
+        "emails/inbox": "(tabs)/emails-inbox",
+        "emails/analytics": "(tabs)/emails-analytics",
+        "emails/drafts": "(tabs)/email-drafts",
+        "emails/signatures": "(tabs)/email-signatures",
+        "emails/templates": "(tabs)/templates",
+        "emails/sequences": "(tabs)/email-sequences",
+        "emails/sequences/analytics": "(tabs)/email-sequence-analytics",
+        "emails/deliverability": "(tabs)/email-deliverability",
+        "emails/suppression": "(tabs)/email-suppression",
+        "emails/search": "(tabs)/emails-search"
+      }
+    },
     "newArchEnabled": true,
     "jsEngine": "hermes",
     "ios": {

@@ -17,6 +17,7 @@ import EmailEngagementCharts from '@/components/EmailEngagementCharts';
 import RecipientEngagementLeaderboard from '@/components/RecipientEngagementLeaderboard';
 import TemplatePerformanceView from '@/components/TemplatePerformanceView';
 import EmailExportModal from '@/components/EmailExportModal';
+import EmailErrorBoundary from '@/components/EmailErrorBoundary';
 import { Download, TrendingUp, Users, FileText, X } from 'lucide-react-native';
 
 type TabType = 'overview' | 'engagement' | 'recipients' | 'templates';
@@ -111,176 +112,187 @@ export default function EmailsAnalyticsScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      {/* Header with Export Button */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Email Analytics
-        </Text>
-        <TouchableOpacity
-          style={[styles.exportButton, { backgroundColor: colors.primary }]}
-          onPress={() => setShowExportModal(true)}
-        >
-          <Download size={18} color="#FFFFFF" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
+    <EmailErrorBoundary>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        {/* Header with Export Button */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Email Analytics
+          </Text>
+          <TouchableOpacity
+            style={[styles.exportButton, { backgroundColor: colors.primary }]}
+            onPress={() => setShowExportModal(true)}
+          >
+            <Download size={18} color="#FFFFFF" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
 
-      {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.key;
-          const Icon = tab.icon;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: isActive ? colors.primary : colors.surface,
-                },
-              ]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Icon
-                size={16}
-                color={isActive ? '#FFFFFF' : colors.textSecondary}
-                strokeWidth={2}
-              />
-              <Text
+        {/* Tab Navigation */}
+        <View style={styles.tabContainer}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const Icon = tab.icon;
+            return (
+              <TouchableOpacity
+                key={tab.key}
                 style={[
-                  styles.tabText,
+                  styles.tab,
                   {
-                    color: isActive ? '#FFFFFF' : colors.textSecondary,
+                    backgroundColor: isActive ? colors.primary : colors.surface,
                   },
                 ]}
+                onPress={() => setActiveTab(tab.key)}
               >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Tab Content */}
-      {activeTab === 'overview' && (
-        <EmailAnalyticsDashboard
-          onDateRangePress={handleDateRangePress}
-          dateRange={dateRange}
-        />
-      )}
-      {activeTab === 'engagement' && (
-        <EmailEngagementCharts dateRange={dateRange} />
-      )}
-      {activeTab === 'recipients' && (
-        <RecipientEngagementLeaderboard dateRange={dateRange} />
-      )}
-      {activeTab === 'templates' && (
-        <TemplatePerformanceView dateRange={dateRange} />
-      )}
-
-      {/* Date Range Picker Modal */}
-      {Platform.OS === 'ios' ? (
-        <Modal
-          visible={showDatePicker}
-          transparent
-          animationType="slide"
-          onRequestClose={closeDatePicker}
-        >
-          <View style={styles.modalOverlay}>
-            <View
-              style={[
-                styles.datePickerModal,
-                { backgroundColor: colors.surface },
-              ]}
-            >
-              <View style={styles.datePickerHeader}>
-                <Text style={[styles.datePickerTitle, { color: colors.text }]}>
-                  Select Date Range
-                </Text>
-                <TouchableOpacity onPress={closeDatePicker}>
-                  <X size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.datePickerContent}>
-                <Text style={[styles.datePickerLabel, { color: colors.text }]}>
-                  Start Date
-                </Text>
-                <DateTimePicker
-                  value={dateRange.start}
-                  mode="date"
-                  display="spinner"
-                  onChange={(e, date) => {
-                    if (date)
-                      setDateRange((prev) => ({ ...prev, start: date }));
-                  }}
-                  maximumDate={dateRange.end}
-                  textColor={colors.text}
+                <Icon
+                  size={16}
+                  color={isActive ? '#FFFFFF' : colors.textSecondary}
+                  strokeWidth={2}
                 />
-
                 <Text
                   style={[
-                    styles.datePickerLabel,
-                    { color: colors.text, marginTop: 16 },
+                    styles.tabText,
+                    {
+                      color: isActive ? '#FFFFFF' : colors.textSecondary,
+                    },
                   ]}
                 >
-                  End Date
+                  {tab.label}
                 </Text>
-                <DateTimePicker
-                  value={dateRange.end}
-                  mode="date"
-                  display="spinner"
-                  onChange={(e, date) => {
-                    if (date) setDateRange((prev) => ({ ...prev, end: date }));
-                  }}
-                  minimumDate={dateRange.start}
-                  maximumDate={new Date()}
-                  textColor={colors.text}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.datePickerButton,
-                  { backgroundColor: colors.primary },
-                ]}
-                onPress={closeDatePicker}
-              >
-                <Text style={styles.datePickerButtonText}>Done</Text>
               </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      ) : (
-        showDatePicker && (
-          <DateTimePicker
-            value={datePickerMode === 'start' ? dateRange.start : dateRange.end}
-            mode="date"
-            display="default"
-            onChange={handleDateChange}
-            maximumDate={
-              datePickerMode === 'start' ? dateRange.end : new Date()
-            }
-            minimumDate={datePickerMode === 'end' ? dateRange.start : undefined}
+            );
+          })}
+        </View>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <EmailAnalyticsDashboard
+            onDateRangePress={handleDateRangePress}
+            dateRange={dateRange}
           />
-        )
-      )}
+        )}
+        {activeTab === 'engagement' && (
+          <EmailEngagementCharts dateRange={dateRange} />
+        )}
+        {activeTab === 'recipients' && (
+          <RecipientEngagementLeaderboard dateRange={dateRange} />
+        )}
+        {activeTab === 'templates' && (
+          <TemplatePerformanceView dateRange={dateRange} />
+        )}
 
-      {/* Export Modal */}
-      <EmailExportModal
-        visible={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        dateRange={dateRange}
-      />
+        {/* Date Range Picker Modal */}
+        {Platform.OS === 'ios' ? (
+          <Modal
+            visible={showDatePicker}
+            transparent
+            animationType="slide"
+            onRequestClose={closeDatePicker}
+          >
+            <View style={styles.modalOverlay}>
+              <View
+                style={[
+                  styles.datePickerModal,
+                  { backgroundColor: colors.surface },
+                ]}
+              >
+                <View style={styles.datePickerHeader}>
+                  <Text
+                    style={[styles.datePickerTitle, { color: colors.text }]}
+                  >
+                    Select Date Range
+                  </Text>
+                  <TouchableOpacity onPress={closeDatePicker}>
+                    <X size={24} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
 
-      <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
-        featureName={modalFeatureName}
-      />
-    </SafeAreaView>
+                <View style={styles.datePickerContent}>
+                  <Text
+                    style={[styles.datePickerLabel, { color: colors.text }]}
+                  >
+                    Start Date
+                  </Text>
+                  <DateTimePicker
+                    value={dateRange.start}
+                    mode="date"
+                    display="spinner"
+                    onChange={(e, date) => {
+                      if (date)
+                        setDateRange((prev) => ({ ...prev, start: date }));
+                    }}
+                    maximumDate={dateRange.end}
+                    textColor={colors.text}
+                  />
+
+                  <Text
+                    style={[
+                      styles.datePickerLabel,
+                      { color: colors.text, marginTop: 16 },
+                    ]}
+                  >
+                    End Date
+                  </Text>
+                  <DateTimePicker
+                    value={dateRange.end}
+                    mode="date"
+                    display="spinner"
+                    onChange={(e, date) => {
+                      if (date)
+                        setDateRange((prev) => ({ ...prev, end: date }));
+                    }}
+                    minimumDate={dateRange.start}
+                    maximumDate={new Date()}
+                    textColor={colors.text}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerButton,
+                    { backgroundColor: colors.primary },
+                  ]}
+                  onPress={closeDatePicker}
+                >
+                  <Text style={styles.datePickerButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        ) : (
+          showDatePicker && (
+            <DateTimePicker
+              value={
+                datePickerMode === 'start' ? dateRange.start : dateRange.end
+              }
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+              maximumDate={
+                datePickerMode === 'start' ? dateRange.end : new Date()
+              }
+              minimumDate={
+                datePickerMode === 'end' ? dateRange.start : undefined
+              }
+            />
+          )
+        )}
+
+        {/* Export Modal */}
+        <EmailExportModal
+          visible={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          dateRange={dateRange}
+        />
+
+        <SubscriptionModal
+          visible={showSubscriptionModal}
+          onClose={() => setShowSubscriptionModal(false)}
+          featureName={modalFeatureName}
+        />
+      </SafeAreaView>
+    </EmailErrorBoundary>
   );
 }
 

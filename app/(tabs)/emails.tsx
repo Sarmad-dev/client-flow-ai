@@ -35,13 +35,21 @@ export default function EmailsScreen() {
               styles.navCard,
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Analytics"
+            accessibilityHint="View email performance charts and statistics"
           >
             <Text
               style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+              accessible={false}
             >
               Analytics
             </Text>
-            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+            <Text
+              style={{ color: colors.textSecondary, marginTop: 4 }}
+              accessible={false}
+            >
               View email performance charts and stats
             </Text>
           </TouchableOpacity>
@@ -56,13 +64,21 @@ export default function EmailsScreen() {
               styles.navCard,
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Inbox"
+            accessibilityHint="Browse email conversations and compose new emails"
           >
             <Text
               style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}
+              accessible={false}
             >
               Inbox
             </Text>
-            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+            <Text
+              style={{ color: colors.textSecondary, marginTop: 4 }}
+              accessible={false}
+            >
               Browse conversations and compose emails
             </Text>
           </TouchableOpacity>

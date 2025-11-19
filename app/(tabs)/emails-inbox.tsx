@@ -12,6 +12,7 @@ import { useTheme } from '@/hooks/useTheme';
 import EmailComposer from '@/components/EmailComposer';
 import EmailThreadsView from '@/components/EmailThreadsView';
 import EmailThreadDetail from '@/components/EmailThreadDetail';
+import EmailErrorBoundary from '@/components/EmailErrorBoundary';
 import { useClients } from '@/hooks/useClients';
 import { useLeads } from '@/hooks/useLeads';
 import { useEmailThreads } from '@/hooks/useEmails';
@@ -89,91 +90,102 @@ export default function EmailsInboxScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      {/* Header */}
-      <View style={styles.headerRow}>
-        {selectedThreadEmail && (
-          <TouchableOpacity
-            onPress={handleBackToThreads}
-            style={styles.backButton}
-          >
-            <ArrowLeft size={24} color={colors.text} />
-          </TouchableOpacity>
-        )}
-        <Text style={[styles.title, { color: colors.text }]}>
-          {selectedThreadEmail ? 'Conversation' : 'Inbox'}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setShowComposer(true)}
-          style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Compose</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Main Content */}
-      {selectedThreadEmail ? (
-        <EmailThreadDetail
-          counterpartyEmail={selectedThreadEmail}
-          displayName={selectedThreadName}
-          onBack={handleBackToThreads}
-        />
-      ) : (
-        <EmailThreadsView onSelectThread={handleSelectThread} />
-      )}
-
-      {/* Compose Modal */}
-      <Modal
-        visible={showComposer}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowComposer(false);
-          setComposerDraftId(null);
-        }}
+    <EmailErrorBoundary>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <SafeAreaView
-          style={[styles.container, { backgroundColor: colors.background }]}
-        >
-          <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: colors.text }]}>
-              {composerDraftId ? 'Edit Draft' : 'Compose'}
-            </Text>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          {selectedThreadEmail && (
             <TouchableOpacity
-              onPress={() => {
-                setShowComposer(false);
-                setComposerDraftId(null);
-              }}
+              onPress={handleBackToThreads}
+              style={styles.backButton}
             >
-              <Text style={{ color: colors.primary, fontWeight: '700' }}>
-                Close
-              </Text>
+              <ArrowLeft size={24} color={colors.text} />
             </TouchableOpacity>
-          </View>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+          )}
+          <Text style={[styles.title, { color: colors.text }]}>
+            {selectedThreadEmail ? 'Conversation' : 'Inbox'}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setShowComposer(true)}
+            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Compose new email"
+            accessibilityHint="Opens email composer to create a new message"
           >
-            <EmailComposer
-              fullScreen
-              to={selectedThreadEmail || ''}
-              suggestedRecipients={suggestionCandidates}
-              draftId={composerDraftId}
-              onSent={() => {
-                setShowComposer(false);
-                setComposerDraftId(null);
-              }}
-              onDraftSaved={(id) => {
-                setComposerDraftId(id);
-              }}
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+            <Text
+              style={{ color: '#fff', fontWeight: '700' }}
+              accessible={false}
+            >
+              Compose
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Main Content */}
+        {selectedThreadEmail ? (
+          <EmailThreadDetail
+            counterpartyEmail={selectedThreadEmail}
+            displayName={selectedThreadName}
+            onBack={handleBackToThreads}
+          />
+        ) : (
+          <EmailThreadsView onSelectThread={handleSelectThread} />
+        )}
+
+        {/* Compose Modal */}
+        <Modal
+          visible={showComposer}
+          animationType="slide"
+          onRequestClose={() => {
+            setShowComposer(false);
+            setComposerDraftId(null);
+          }}
+        >
+          <SafeAreaView
+            style={[styles.container, { backgroundColor: colors.background }]}
+          >
+            <View style={styles.headerRow}>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {composerDraftId ? 'Edit Draft' : 'Compose'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowComposer(false);
+                  setComposerDraftId(null);
+                }}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <EmailComposer
+                fullScreen
+                to={selectedThreadEmail || ''}
+                suggestedRecipients={suggestionCandidates}
+                draftId={composerDraftId}
+                onSent={() => {
+                  setShowComposer(false);
+                  setComposerDraftId(null);
+                }}
+                onDraftSaved={(id) => {
+                  setComposerDraftId(id);
+                }}
+              />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </EmailErrorBoundary>
   );
 }
 

@@ -7,10 +7,12 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useEmailThreads } from '@/hooks/useEmails';
 import { Mail, Search, MessageCircle, ChevronRight } from 'lucide-react-native';
+import EmailListSkeleton from './EmailListSkeleton';
 
 interface EmailThreadsViewProps {
   onSelectThread: (
@@ -25,7 +27,13 @@ export default function EmailThreadsView({
   onSelectThread,
 }: EmailThreadsViewProps) {
   const { colors } = useTheme();
-  const { data: threads = [], isLoading, error } = useEmailThreads();
+  const {
+    data: threads = [],
+    isLoading,
+    error,
+    refetch,
+    isRefetching,
+  } = useEmailThreads();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
 
@@ -111,6 +119,11 @@ export default function EmailThreadsView({
           borderColor: sortBy === option ? colors.primary : colors.border,
         },
       ]}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`Sort by ${label}`}
+      accessibilityState={{ selected: sortBy === option }}
+      accessibilityHint={`Sorts conversations by ${label.toLowerCase()}`}
     >
       <Text
         style={[
@@ -120,167 +133,181 @@ export default function EmailThreadsView({
             fontWeight: sortBy === option ? '600' : '400',
           },
         ]}
+        accessible={false}
       >
         {label}
       </Text>
     </TouchableOpacity>
   );
 
-  const renderThreadItem = ({ item }: { item: (typeof threads)[0] }) => {
-    const hasUnread = item.unreadCount > 0;
+  const renderThreadItem = React.useCallback(
+    ({ item }: { item: (typeof threads)[0] }) => {
+      const hasUnread = item.unreadCount > 0;
 
-    return (
-      <TouchableOpacity
-        onPress={() => onSelectThread(item.counterpartyEmail, item.displayName)}
-        style={[
-          styles.threadCard,
-          {
-            backgroundColor: hasUnread ? colors.surface : colors.background,
-            borderColor: hasUnread ? colors.primary + '30' : colors.border,
-            borderLeftWidth: hasUnread ? 3 : 1,
-            borderLeftColor: hasUnread ? colors.primary : colors.border,
-          },
-        ]}
-      >
-        {/* Avatar/Icon */}
-        <View
+      const accessibilityLabel = `Email thread with ${
+        item.displayName || item.counterpartyEmail
+      }, ${item.totalCount} message${item.totalCount !== 1 ? 's' : ''}, ${
+        hasUnread ? `${item.unreadCount} unread` : 'all read'
+      }, last message ${formatRelativeTime(item.lastMessageTime)}`;
+
+      return (
+        <TouchableOpacity
+          onPress={() =>
+            onSelectThread(item.counterpartyEmail, item.displayName)
+          }
           style={[
-            styles.avatar,
+            styles.threadCard,
             {
-              backgroundColor: item.displayName
-                ? colors.primary + '20'
-                : colors.surface,
+              backgroundColor: hasUnread ? colors.surface : colors.background,
+              borderColor: hasUnread ? colors.primary + '30' : colors.border,
+              borderLeftWidth: hasUnread ? 3 : 1,
+              borderLeftColor: hasUnread ? colors.primary : colors.border,
             },
           ]}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          accessibilityHint="Double tap to view conversation"
+          accessibilityState={{ selected: hasUnread }}
         >
-          {item.displayName ? (
-            <Text
-              style={[
-                styles.avatarText,
-                {
-                  color: colors.primary,
-                },
-              ]}
-            >
-              {item.displayName.charAt(0).toUpperCase()}
-            </Text>
-          ) : (
-            <Mail size={20} color={colors.textSecondary} />
-          )}
-        </View>
-
-        {/* Thread Info */}
-        <View style={styles.threadContent}>
-          {/* Header Row */}
-          <View style={styles.threadHeader}>
-            <View style={styles.threadTitleRow}>
+          {/* Avatar/Icon */}
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: item.displayName
+                  ? colors.primary + '20'
+                  : colors.surface,
+              },
+            ]}
+          >
+            {item.displayName ? (
               <Text
                 style={[
-                  styles.threadName,
+                  styles.avatarText,
+                  {
+                    color: colors.primary,
+                  },
+                ]}
+              >
+                {item.displayName.charAt(0).toUpperCase()}
+              </Text>
+            ) : (
+              <Mail size={20} color={colors.textSecondary} />
+            )}
+          </View>
+
+          {/* Thread Info */}
+          <View style={styles.threadContent}>
+            {/* Header Row */}
+            <View style={styles.threadHeader}>
+              <View style={styles.threadTitleRow}>
+                <Text
+                  style={[
+                    styles.threadName,
+                    {
+                      color: colors.text,
+                      fontWeight: hasUnread ? '700' : '600',
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.displayName || item.counterpartyEmail}
+                </Text>
+                {hasUnread && (
+                  <View
+                    style={[
+                      styles.unreadBadge,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text style={styles.unreadBadgeText}>
+                      {item.unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.threadTime,
+                  {
+                    color: hasUnread ? colors.primary : colors.textSecondary,
+                    fontWeight: hasUnread ? '600' : '400',
+                  },
+                ]}
+              >
+                {formatRelativeTime(item.lastMessageTime)}
+              </Text>
+            </View>
+
+            {/* Email Address (if different from display name) */}
+            {item.displayName && (
+              <Text
+                style={[styles.threadEmail, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {item.counterpartyEmail}
+              </Text>
+            )}
+
+            {/* Last Subject */}
+            {item.lastSubject && (
+              <Text
+                style={[
+                  styles.threadSubject,
                   {
                     color: colors.text,
-                    fontWeight: hasUnread ? '700' : '600',
+                    fontWeight: hasUnread ? '600' : '400',
                   },
                 ]}
                 numberOfLines={1}
               >
-                {item.displayName || item.counterpartyEmail}
+                {item.lastSubject}
               </Text>
-              {hasUnread && (
-                <View
+            )}
+
+            {/* Footer Row */}
+            <View style={styles.threadFooter}>
+              <View style={styles.threadStats}>
+                <MessageCircle size={14} color={colors.textSecondary} />
+                <Text
                   style={[
-                    styles.unreadBadge,
-                    { backgroundColor: colors.primary },
+                    styles.threadStatsText,
+                    { color: colors.textSecondary },
                   ]}
                 >
-                  <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+                  {item.totalCount} message{item.totalCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              {item.hasReplied && (
+                <View
+                  style={[
+                    styles.repliedBadge,
+                    { backgroundColor: colors.primary + '15' },
+                  ]}
+                >
+                  <Text
+                    style={[styles.repliedBadgeText, { color: colors.primary }]}
+                  >
+                    Replied
+                  </Text>
                 </View>
               )}
             </View>
-            <Text
-              style={[
-                styles.threadTime,
-                {
-                  color: hasUnread ? colors.primary : colors.textSecondary,
-                  fontWeight: hasUnread ? '600' : '400',
-                },
-              ]}
-            >
-              {formatRelativeTime(item.lastMessageTime)}
-            </Text>
           </View>
 
-          {/* Email Address (if different from display name) */}
-          {item.displayName && (
-            <Text
-              style={[styles.threadEmail, { color: colors.textSecondary }]}
-              numberOfLines={1}
-            >
-              {item.counterpartyEmail}
-            </Text>
-          )}
-
-          {/* Last Subject */}
-          {item.lastSubject && (
-            <Text
-              style={[
-                styles.threadSubject,
-                {
-                  color: colors.text,
-                  fontWeight: hasUnread ? '600' : '400',
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {item.lastSubject}
-            </Text>
-          )}
-
-          {/* Footer Row */}
-          <View style={styles.threadFooter}>
-            <View style={styles.threadStats}>
-              <MessageCircle size={14} color={colors.textSecondary} />
-              <Text
-                style={[
-                  styles.threadStatsText,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                {item.totalCount} message{item.totalCount !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            {item.hasReplied && (
-              <View
-                style={[
-                  styles.repliedBadge,
-                  { backgroundColor: colors.primary + '15' },
-                ]}
-              >
-                <Text
-                  style={[styles.repliedBadgeText, { color: colors.primary }]}
-                >
-                  Replied
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Chevron */}
-        <ChevronRight size={20} color={colors.textSecondary} />
-      </TouchableOpacity>
-    );
-  };
+          {/* Chevron */}
+          <ChevronRight size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      );
+    },
+    [colors, onSelectThread]
+  );
 
   if (isLoading) {
     return (
-      <View
-        style={[styles.centerContainer, { backgroundColor: colors.background }]}
-      >
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          Loading conversations...
-        </Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EmailListSkeleton count={6} />
       </View>
     );
   }
@@ -323,6 +350,9 @@ export default function EmailThreadsView({
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
+            accessible={true}
+            accessibilityLabel="Search conversations"
+            accessibilityHint="Type to search email conversations by name, email, or subject"
           />
         </View>
       </View>
@@ -361,6 +391,19 @@ export default function EmailThreadsView({
           renderItem={renderThreadItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={10}
+          windowSize={10}
         />
       )}
     </View>
