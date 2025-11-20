@@ -19,6 +19,16 @@ interface AnalyticsCacheEntry {
   expires_at: string;
 }
 
+function formatError(error: any): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    // Handle Supabase errors
+    if ('message' in error) return error.message;
+    return JSON.stringify(error);
+  }
+  return String(error);
+}
+
 /**
  * Calculate daily statistics for a user
  */
@@ -41,7 +51,7 @@ async function calculateDailyStats(
         level: 'error',
         message: 'Database error in calculateDailyStats',
         userId,
-        error: error.message,
+        error: formatError(error),
         code: error.code,
         details: error.details,
         hint: error.hint,
@@ -104,7 +114,7 @@ async function calculateTemplatePerformance(
           level: 'warn',
           message:
             'Template performance calculation skipped - schema not ready',
-          error: testError.message,
+          error: formatError(testError),
           timestamp: new Date().toISOString(),
         })
       );
@@ -144,7 +154,7 @@ async function calculateTemplatePerformance(
       JSON.stringify({
         level: 'error',
         message: 'Error in calculateTemplatePerformance',
-        error: error instanceof Error ? error.message : String(error),
+        error: formatError(error),
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString(),
       })
@@ -176,7 +186,7 @@ async function calculateRecipientEngagement(
         level: 'error',
         message: 'Database error in calculateRecipientEngagement',
         userId,
-        error: emailError.message,
+        error: formatError(emailError),
         code: emailError.code,
         details: emailError.details,
         hint: emailError.hint,
@@ -280,7 +290,7 @@ async function storeCacheEntry(entry: AnalyticsCacheEntry): Promise<void> {
         message: 'Database error in storeCacheEntry',
         userId: entry.user_id,
         metricType: entry.metric_type,
-        error: error.message,
+        error: formatError(error),
         code: error.code,
         details: error.details,
         hint: error.hint,
@@ -323,14 +333,32 @@ async function generateUserAnalytics(userId: string): Promise<any> {
 
   for (const range of dateRanges) {
     try {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (!profile) {
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            message: 'Profile not found for user',
+            userId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+        throw new Error('Profile not found for user');
+      }
       // Calculate daily stats
       const dailyStats = await calculateDailyStats(
         userId,
         range.start,
         range.end
       );
+
       await storeCacheEntry({
-        user_id: userId,
+        user_id: profile.id,
         metric_type: `daily_stats_${range.name}`,
         date_range_start: range.start.toISOString().split('T')[0],
         date_range_end: range.end.toISOString().split('T')[0],
@@ -344,8 +372,9 @@ async function generateUserAnalytics(userId: string): Promise<any> {
         range.start,
         range.end
       );
+
       await storeCacheEntry({
-        user_id: userId,
+        user_id: profile.id,
         metric_type: `template_performance_${range.name}`,
         date_range_start: range.start.toISOString().split('T')[0],
         date_range_end: range.end.toISOString().split('T')[0],
@@ -359,8 +388,9 @@ async function generateUserAnalytics(userId: string): Promise<any> {
         range.start,
         range.end
       );
+
       await storeCacheEntry({
-        user_id: userId,
+        user_id: profile.id,
         metric_type: `recipient_engagement_${range.name}`,
         date_range_start: range.start.toISOString().split('T')[0],
         date_range_end: range.end.toISOString().split('T')[0],
@@ -373,8 +403,7 @@ async function generateUserAnalytics(userId: string): Promise<any> {
         cached: true,
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = formatError(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
 
       console.error(
@@ -478,8 +507,7 @@ async function handler(req: Request): Promise<Response> {
           const results = await generateUserAnalytics(uid);
           allResults.push({ userId: uid, results });
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
+          const errorMessage = formatError(error);
           const errorStack = error instanceof Error ? error.stack : undefined;
 
           console.error(
@@ -526,7 +554,7 @@ async function handler(req: Request): Promise<Response> {
       );
     }
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorMsg = formatError(error);
     console.error(
       JSON.stringify({
         level: 'error',

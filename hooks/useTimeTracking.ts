@@ -202,6 +202,41 @@ export function useStartTimer() {
         );
       }
 
+      // Check for incomplete task dependencies
+      const { data: dependencies, error: depsError } = await supabase
+        .from('task_dependencies')
+        .select(
+          `
+          depends_on_task:tasks!depends_on_task_id(
+            id, title, status
+          )
+        `
+        )
+        .eq('task_id', taskId);
+
+      if (depsError) throw depsError;
+
+      if (dependencies && dependencies.length > 0) {
+        const incompleteDeps = (dependencies as any[])
+          .map((dep) => dep.depends_on_task)
+          .filter((task) => task && task.status !== 'completed');
+
+        if (incompleteDeps.length > 0) {
+          const depTitles = incompleteDeps
+            .map((task) => `"${task.title}"`)
+            .join(', ');
+          throw new Error(
+            `Cannot start timer. This task depends on ${
+              incompleteDeps.length
+            } incomplete ${
+              incompleteDeps.length === 1 ? 'task' : 'tasks'
+            }: ${depTitles}. Please complete ${
+              incompleteDeps.length === 1 ? 'it' : 'them'
+            } first.`
+          );
+        }
+      }
+
       const { data, error } = await supabase
         .from('time_entries')
         .insert({
