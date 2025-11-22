@@ -158,10 +158,16 @@ export function useAutomationRules() {
     queryFn: async (): Promise<AutomationRuleWithMetadata[]> => {
       if (!userId) return [];
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
       const { data, error } = await supabase
         .from('automation_rules')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', profile?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -189,6 +195,12 @@ export function useCreateAutomationRule() {
     }): Promise<AutomationRuleWithMetadata> => {
       if (!userId) throw new Error('Not authenticated');
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
       // Validate the automation rule
       const validationResult = await validateAutomationRule({
         id: 'temp',
@@ -207,7 +219,7 @@ export function useCreateAutomationRule() {
       const { data, error } = await supabase
         .from('automation_rules')
         .insert({
-          user_id: userId,
+          user_id: profile?.id,
           name: payload.name,
           description: payload.description,
           trigger: payload.trigger,
@@ -332,6 +344,12 @@ export function useAutomationExecutions() {
     queryFn: async (): Promise<AutomationExecution[]> => {
       if (!userId) return [];
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
       const { data, error } = await supabase
         .from('automation_executions')
         .select(
@@ -341,7 +359,7 @@ export function useAutomationExecutions() {
           task:tasks(title, status)
         `
         )
-        .eq('user_id', userId)
+        .eq('user_id', profile?.id)
         .order('executed_at', { ascending: false })
         .limit(100);
 

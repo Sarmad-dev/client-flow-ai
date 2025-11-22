@@ -335,8 +335,8 @@ async function generateUserAnalytics(userId: string): Promise<any> {
     try {
       const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('*')
-        .eq('id', userId)
+        .select('id')
+        .eq('user_id', userId)
         .single();
 
       if (!profile) {
@@ -358,7 +358,7 @@ async function generateUserAnalytics(userId: string): Promise<any> {
       );
 
       await storeCacheEntry({
-        user_id: profile.id,
+        user_id: profile?.id,
         metric_type: `daily_stats_${range.name}`,
         date_range_start: range.start.toISOString().split('T')[0],
         date_range_end: range.end.toISOString().split('T')[0],
@@ -374,7 +374,7 @@ async function generateUserAnalytics(userId: string): Promise<any> {
       );
 
       await storeCacheEntry({
-        user_id: profile.id,
+        user_id: profile?.id,
         metric_type: `template_performance_${range.name}`,
         date_range_start: range.start.toISOString().split('T')[0],
         date_range_end: range.end.toISOString().split('T')[0],
@@ -390,7 +390,7 @@ async function generateUserAnalytics(userId: string): Promise<any> {
       );
 
       await storeCacheEntry({
-        user_id: profile.id,
+        user_id: profile?.id,
         metric_type: `recipient_engagement_${range.name}`,
         date_range_start: range.start.toISOString().split('T')[0],
         date_range_end: range.end.toISOString().split('T')[0],

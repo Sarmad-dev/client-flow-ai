@@ -311,6 +311,19 @@ export function useStopTimer() {
       // Update task's actual hours
       await updateTaskActualHours(activeTimer.task_id);
 
+      // Get the task for automation trigger
+      const { data: task } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', activeTimer.task_id)
+        .single();
+
+      // Trigger time tracked automation
+      if (task) {
+        const { triggerTimeTracked } = await import('@/lib/automationEngine');
+        await triggerTimeTracked(task, data as TimeEntry);
+      }
+
       return data as TimeEntry;
     },
     onSuccess: () => {

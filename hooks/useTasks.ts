@@ -128,11 +128,38 @@ export function useToggleTaskStatus() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; to: TaskRecord['status'] }) => {
-      const { error } = await supabase
+      // Get the current task to track old status
+      const { data: currentTask } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', payload.id)
+        .single();
+
+      const oldStatus = currentTask?.status;
+
+      const { data, error } = await supabase
         .from('tasks')
         .update({ status: payload.to })
-        .eq('id', payload.id);
+        .eq('id', payload.id)
+        .select()
+        .single();
+
       if (error) throw error;
+
+      // Trigger automations
+      const { triggerStatusChanged, triggerTaskCompleted } = await import(
+        '@/lib/automationEngine'
+      );
+
+      if (oldStatus && oldStatus !== payload.to) {
+        await triggerStatusChanged(data as TaskRecord, oldStatus);
+      }
+
+      if (payload.to === 'completed') {
+        await triggerTaskCompleted(data as TaskRecord);
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all as any });
@@ -147,13 +174,41 @@ export function useUpdateTask() {
       payload: { id: string } & Partial<TaskRecord>
     ): Promise<TaskRecord> => {
       const { id, ...updateData } = payload;
+
+      // Get the current task to track changes
+      const { data: currentTask } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { data, error } = await supabase
         .from('tasks')
         .update(updateData)
         .eq('id', id)
         .select()
         .single();
+
+      console.log('Error: ', error);
+
       if (error) throw error;
+
+      // Trigger automations if status changed
+      if (updateData.status && currentTask?.status !== updateData.status) {
+        const { triggerStatusChanged, triggerTaskCompleted } = await import(
+          '@/lib/automationEngine'
+        );
+
+        await triggerStatusChanged(
+          data as TaskRecord,
+          currentTask.status as TaskRecord['status']
+        );
+
+        if (updateData.status === 'completed') {
+          await triggerTaskCompleted(data as TaskRecord);
+        }
+      }
+
       return data as unknown as TaskRecord;
     },
     onSuccess: () => {
