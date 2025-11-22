@@ -80,6 +80,7 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
     "@types/react-native": "^0.72.8",
+    "baseline-browser-mapping": "^2.8.30",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",
     "supabase": "^2.51.0",

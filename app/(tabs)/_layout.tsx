@@ -11,8 +11,16 @@ import {
   Menu,
   NotepadTextDashed,
   Calendar,
+  X,
 } from 'lucide-react-native';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ScrollView,
+} from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { Animated, Easing } from 'react-native';
 import { User as UserIcon } from 'lucide-react-native';
@@ -23,27 +31,42 @@ export default function TabLayout() {
   const { session, loading } = useAuth();
   const { colors, isDark } = useTheme();
   const [showMore, setShowMore] = useState(false);
-  const sidebarWidth = 280;
+  const sidebarWidth = 300;
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (showMore) {
-      Animated.timing(sidebarAnim, {
-        toValue: 0,
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.spring(sidebarAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 11,
+        }),
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [showMore, sidebarAnim]);
+  }, [showMore, sidebarAnim, overlayOpacity]);
 
   const closeMore = () => {
-    Animated.timing(sidebarAnim, {
-      toValue: -sidebarWidth,
-      duration: 200,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => setShowMore(false));
+    Animated.parallel([
+      Animated.timing(sidebarAnim, {
+        toValue: -sidebarWidth,
+        duration: 220,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowMore(false));
   };
 
   if (loading) {
@@ -73,207 +96,277 @@ export default function TabLayout() {
   const cardBg = colors.surface;
   const cardBorder = isDark ? '#1F2937' : '#E5E7EB';
 
+  const AnimatedMenuItem = ({
+    icon,
+    label,
+    color,
+    onPress,
+  }: {
+    icon: React.ReactNode;
+    label: string;
+    color: string;
+    onPress: () => void;
+  }) => {
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+
+    const handlePressIn = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 0.96,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 10,
+      }).start();
+    };
+
+    const handlePressOut = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 10,
+      }).start();
+    };
+
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+      >
+        <Animated.View
+          style={[
+            styles.sidebarItem,
+            {
+              backgroundColor: cardBg,
+              borderColor: cardBorder,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: `${color}20` }]}>
+            {icon}
+          </View>
+          <Text style={[styles.sidebarText, { color: textColor }]}>
+            {label}
+          </Text>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <>
       {showMore && (
-        <View
-          style={[
-            styles.overlay,
-            { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.4)' },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={closeMore}
-          />
+        <View style={styles.overlay}>
+          <Animated.View
+            style={[
+              styles.backdrop,
+              {
+                backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)',
+                opacity: overlayOpacity,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={closeMore}
+            />
+          </Animated.View>
           <Animated.View
             style={[
               styles.sidebar,
               {
                 backgroundColor: colors.background,
-                borderRightColor: isDark ? '#374151' : '#E5E7EB',
+                borderLeftColor: isDark ? '#374151' : '#E5E7EB',
                 transform: [{ translateX: sidebarAnim }],
                 width: sidebarWidth,
+                shadowColor: '#000',
+                shadowOffset: { width: -4, height: 0 },
+                shadowOpacity: isDark ? 0.5 : 0.15,
+                shadowRadius: 12,
+                elevation: 8,
               },
             ]}
           >
-            <Text style={[styles.sidebarTitle, { color: textColor }]}>
-              More
-            </Text>
-            <View style={styles.sidebarGroup}>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/profile');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#10B98120' }]}
-                >
-                  <UserIcon size={18} color={'#10B981'} />
+            {/* Header with Logo and Close Button */}
+            <View style={styles.sidebarHeader}>
+              <View style={styles.logoContainer}>
+                <Image
+                  source={require('@/assets/images/icon.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+                <View>
+                  <Text style={[styles.appName, { color: textColor }]}>
+                    NexaSuit
+                  </Text>
+                  <Text
+                    style={[styles.appTagline, { color: colors.textSecondary }]}
+                  >
+                    Business CRM
+                  </Text>
                 </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Profile
-                </Text>
-              </TouchableOpacity>
+              </View>
               <TouchableOpacity
+                onPress={closeMore}
                 style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
+                  styles.closeButton,
+                  { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' },
                 ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/meetings');
-                }}
               >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#3B82F620' }]}
-                >
-                  <Phone size={18} color={'#3B82F6'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Meetings
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/emails');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#F59E0B20' }]}
-                >
-                  <Mail size={18} color={'#F59E0B'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Emails
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/settings');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#6366F120' }]}
-                >
-                  <Settings size={18} color={'#6366F1'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Settings
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/task-templates');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#6366F120' }]}
-                >
-                  <NotepadTextDashed size={18} color={'#6366F1'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Task Templates
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/dependency-graph');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#8B5CF620' }]}
-                >
-                  <Ionicons name="git-network" size={18} color={'#8B5CF6'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Dependencies
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/task-automation');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#EC489920' }]}
-                >
-                  <Ionicons name="flash" size={18} color={'#EC4899'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Automation
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/calendar');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#6366F120' }]}
-                >
-                  <Calendar size={18} color={'#6366F1'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Calendar
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sidebarItem,
-                  { backgroundColor: cardBg, borderColor: cardBorder },
-                ]}
-                onPress={() => {
-                  closeMore();
-                  router.push('/(tabs)/subscription');
-                }}
-              >
-                <View
-                  style={[styles.iconWrap, { backgroundColor: '#F59E0B20' }]}
-                >
-                  <Ionicons name="diamond" size={18} color={'#F59E0B'} />
-                </View>
-                <Text style={[styles.sidebarText, { color: textColor }]}>
-                  Subscription
-                </Text>
+                <X size={20} color={textColor} />
               </TouchableOpacity>
             </View>
+
+            {/* Divider */}
+            <View
+              style={[
+                styles.divider,
+                { backgroundColor: isDark ? '#374151' : '#E5E7EB' },
+              ]}
+            />
+
+            <ScrollView
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <View style={styles.sidebarGroup}>
+                <AnimatedMenuItem
+                  icon={<UserIcon size={20} color="#10B981" />}
+                  label="Profile"
+                  color="#10B981"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/profile');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={<Phone size={20} color="#3B82F6" />}
+                  label="Meetings"
+                  color="#3B82F6"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/meetings');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={<Mail size={20} color="#F59E0B" />}
+                  label="Emails"
+                  color="#F59E0B"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/emails');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={<Calendar size={20} color="#6366F1" />}
+                  label="Calendar"
+                  color="#6366F1"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/calendar');
+                  }}
+                />
+              </View>
+
+              {/* Section Divider */}
+              <View style={styles.sectionDivider}>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: isDark ? '#374151' : '#E5E7EB' },
+                  ]}
+                />
+                <Text
+                  style={[styles.sectionLabel, { color: colors.textSecondary }]}
+                >
+                  TOOLS
+                </Text>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: isDark ? '#374151' : '#E5E7EB' },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.sidebarGroup}>
+                <AnimatedMenuItem
+                  icon={<NotepadTextDashed size={20} color="#6366F1" />}
+                  label="Task Templates"
+                  color="#6366F1"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/task-templates');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={
+                    <Ionicons name="git-network" size={20} color="#8B5CF6" />
+                  }
+                  label="Dependencies"
+                  color="#8B5CF6"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/dependency-graph');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={<Ionicons name="flash" size={20} color="#EC4899" />}
+                  label="Automation"
+                  color="#EC4899"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/task-automation');
+                  }}
+                />
+              </View>
+
+              {/* Section Divider */}
+              <View style={styles.sectionDivider}>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: isDark ? '#374151' : '#E5E7EB' },
+                  ]}
+                />
+                <Text
+                  style={[styles.sectionLabel, { color: colors.textSecondary }]}
+                >
+                  ACCOUNT
+                </Text>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: isDark ? '#374151' : '#E5E7EB' },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.sidebarGroup}>
+                <AnimatedMenuItem
+                  icon={<Settings size={20} color="#6366F1" />}
+                  label="Settings"
+                  color="#6366F1"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/settings');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={<Ionicons name="diamond" size={20} color="#F59E0B" />}
+                  label="Subscription"
+                  color="#F59E0B"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/subscription');
+                  }}
+                />
+              </View>
+            </ScrollView>
           </Animated.View>
         </View>
       )}
@@ -409,31 +502,94 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    width: 280,
-    paddingTop: 60,
-    paddingHorizontal: 16,
+    width: 300,
     borderLeftWidth: 1,
   },
-  sidebarTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
+  sidebarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logo: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+  },
+  appName: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  appTagline: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 20,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 32,
+  },
   sidebarItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    borderRadius: 8,
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     borderWidth: 1,
   },
-  sidebarText: { fontSize: 16, fontWeight: '600' },
+  sidebarText: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
   sidebarGroup: {
-    gap: 8,
-    paddingVertical: 8,
+    gap: 10,
   },
   iconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+    paddingHorizontal: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginHorizontal: 12,
   },
 });
