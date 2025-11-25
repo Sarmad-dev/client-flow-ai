@@ -294,7 +294,7 @@ export default function TabLayout() {
               </View>
 
               <View style={styles.sidebarGroup}>
-                <AnimatedMenuItem
+                {/* <AnimatedMenuItem
                   icon={<NotepadTextDashed size={20} color="#6366F1" />}
                   label="Task Templates"
                   color="#6366F1"
@@ -302,7 +302,7 @@ export default function TabLayout() {
                     closeMore();
                     router.push('/(tabs)/task-templates');
                   }}
-                />
+                /> */}
                 <AnimatedMenuItem
                   icon={
                     <Ionicons name="git-network" size={20} color="#8B5CF6" />

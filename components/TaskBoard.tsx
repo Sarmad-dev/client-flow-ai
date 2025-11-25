@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
-import { Plus, Filter, Settings } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '@/hooks/useTheme';
-import { TaskCard } from './TaskCard';
+import { DraggableTaskCard } from './DraggableTaskCard';
 import type { TaskRecord } from '@/hooks/useTasks';
 import type {
   BoardColumn,
@@ -40,6 +41,14 @@ interface DragState {
   dragOverColumn: string | null;
 }
 
+interface ColumnLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  status: string;
+}
+
 export function TaskBoard({
   tasks,
   columns,
@@ -47,9 +56,7 @@ export function TaskBoard({
   onTaskPress,
   onCreateTask,
   filters,
-  onFiltersChange,
   configuration,
-  onConfigurationChange,
   loading = false,
 }: TaskBoardProps) {
   const { colors } = useTheme();
@@ -59,9 +66,10 @@ export function TaskBoard({
     draggedFromColumn: null,
     dragOverColumn: null,
   });
-  const [showFilters, setShowFilters] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [columnLayouts, setColumnLayouts] = useState<ColumnLayout[]>([]);
+  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [scrollOffset, setScrollOffset] = useState(0);
 
   // Default configuration
   const defaultConfig: BoardConfiguration = {
@@ -74,7 +82,7 @@ export function TaskBoard({
 
   const config = configuration || defaultConfig;
 
-  // Group tasks by status
+  // Group tasks by status (filter out subtasks)
   const tasksByStatus = React.useMemo(() => {
     const grouped: Record<string, TaskRecord[]> = {};
 
@@ -82,7 +90,10 @@ export function TaskBoard({
       grouped[column.status] = [];
     });
 
-    tasks.forEach((task) => {
+    // Only include parent tasks (filter out subtasks)
+    const parentTasks = tasks.filter((task) => !task.parent_task_id);
+
+    parentTasks.forEach((task) => {
       const status = task.status || 'pending';
       if (grouped[status]) {
         grouped[status].push(task);
@@ -167,55 +178,194 @@ export function TaskBoard({
     return filtered;
   }, [tasksByStatus, filters]);
 
-  // Handle drag over column
-  const handleDragOver = (columnStatus: string) => {
-    if (dragState.isDragging) {
-      setDragState((prev) => ({
-        ...prev,
-        dragOverColumn: columnStatus,
-      }));
-    }
-  };
+  // Handle drag start
+  const handleDragStart = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) {
+        setDragState({
+          isDragging: true,
+          draggedTask: task,
+          draggedFromColumn: task.status,
+          dragOverColumn: null,
+        });
+      }
+    },
+    [tasks]
+  );
 
-  // Handle drop
-  const handleDrop = (targetColumnStatus: string) => {
-    if (
-      dragState.draggedTask &&
-      dragState.draggedFromColumn !== targetColumnStatus
-    ) {
-      const targetColumn = columns.find(
-        (col) => col.status === targetColumnStatus
-      );
+  // Handle drag move for auto-scrolling
+  const handleDragMove = useCallback(
+    (taskId: string, x: number, y: number) => {
+      const edgeThreshold = 120;
+      const maxScrollSpeed = 25;
+      const minScrollSpeed = 8;
 
-      // Check WIP limit
-      if (targetColumn?.limit) {
-        const currentTasksInColumn =
-          filteredTasksByStatus[targetColumnStatus]?.length || 0;
-        if (currentTasksInColumn >= targetColumn.limit) {
-          Alert.alert(
-            'WIP Limit Exceeded',
-            `Column "${targetColumn.title}" has reached its limit of ${targetColumn.limit} tasks.`
-          );
-          setDragState({
-            isDragging: false,
-            draggedTask: null,
-            draggedFromColumn: null,
-            dragOverColumn: null,
-          });
-          return;
-        }
+      // Clear any existing scroll interval
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
       }
 
-      onTaskMove(dragState.draggedTask.id, targetColumnStatus);
-    }
+      // Calculate dynamic scroll speed based on distance from edge
+      let scrollSpeed = 0;
+      let direction = 0;
 
-    setDragState({
-      isDragging: false,
-      draggedTask: null,
-      draggedFromColumn: null,
-      dragOverColumn: null,
-    });
-  };
+      // Check if near left edge
+      if (x < edgeThreshold) {
+        const distanceFromEdge = edgeThreshold - x;
+        const speedRatio = Math.min(distanceFromEdge / edgeThreshold, 1);
+        scrollSpeed =
+          minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedRatio;
+        direction = -1;
+      }
+      // Check if near right edge
+      else if (x > screenWidth - edgeThreshold) {
+        const distanceFromEdge = x - (screenWidth - edgeThreshold);
+        const speedRatio = Math.min(distanceFromEdge / edgeThreshold, 1);
+        scrollSpeed =
+          minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedRatio;
+        direction = 1;
+      }
+
+      // Start scrolling if near an edge
+      if (direction !== 0) {
+        scrollIntervalRef.current = setInterval(() => {
+          const newOffset =
+            direction === -1
+              ? Math.max(0, scrollOffset - scrollSpeed)
+              : scrollOffset + scrollSpeed;
+
+          scrollViewRef.current?.scrollTo({
+            x: newOffset,
+            animated: false,
+          });
+          setScrollOffset(newOffset);
+        }, 16) as any;
+      }
+    },
+    [scrollOffset]
+  );
+
+  // Handle drag end with position
+  const handleDragEnd = useCallback(
+    (taskId: string, x: number, y: number) => {
+      // Clear auto-scroll interval
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) {
+        setDragState({
+          isDragging: false,
+          draggedTask: null,
+          draggedFromColumn: null,
+          dragOverColumn: null,
+        });
+        return;
+      }
+
+      // Adjust x position based on scroll offset
+      const adjustedX = x + scrollOffset;
+
+      console.log('Drop position:', { x, y, adjustedX, scrollOffset });
+      console.log('Column layouts:', columnLayouts);
+
+      // Find which column the task was dropped in
+      const targetColumn = columnLayouts.find(
+        (layout) =>
+          adjustedX >= layout.x &&
+          adjustedX <= layout.x + layout.width &&
+          y >= layout.y &&
+          y <= layout.y + layout.height
+      );
+
+      console.log('Target column found:', targetColumn);
+
+      if (targetColumn && targetColumn.status !== task.status) {
+        const column = columns.find(
+          (col) => col.status === targetColumn.status
+        );
+
+        console.log(
+          'Moving to column:',
+          column?.title,
+          'status:',
+          targetColumn.status
+        );
+
+        // Check WIP limit
+        if (column?.limit) {
+          const currentTasksInColumn =
+            filteredTasksByStatus[targetColumn.status]?.length || 0;
+          if (currentTasksInColumn >= column.limit) {
+            Alert.alert(
+              'WIP Limit Exceeded',
+              `Column "${column.title}" has reached its limit of ${column.limit} tasks.`
+            );
+            setDragState({
+              isDragging: false,
+              draggedTask: null,
+              draggedFromColumn: null,
+              dragOverColumn: null,
+            });
+            return;
+          }
+        }
+
+        onTaskMove(taskId, targetColumn.status);
+      } else {
+        console.log('No target column or same status');
+      }
+
+      setDragState({
+        isDragging: false,
+        draggedTask: null,
+        draggedFromColumn: null,
+        dragOverColumn: null,
+      });
+    },
+    [
+      tasks,
+      columnLayouts,
+      columns,
+      filteredTasksByStatus,
+      onTaskMove,
+      scrollOffset,
+    ]
+  );
+
+  // Handle column layout measurement using measureInWindow for absolute positions
+  const handleColumnLayout = useCallback((status: string, ref: any) => {
+    if (ref) {
+      ref.measureInWindow(
+        (x: number, y: number, width: number, height: number) => {
+          setColumnLayouts((prev) => {
+            const existing = prev.findIndex(
+              (layout) => layout.status === status
+            );
+            const newLayout = { x, y, width, height, status };
+
+            console.log('Column layout measured:', status, {
+              x,
+              y,
+              width,
+              height,
+            });
+
+            if (existing >= 0) {
+              const updated = [...prev];
+              updated[existing] = newLayout;
+              return updated;
+            }
+            return [...prev, newLayout];
+          });
+        }
+      );
+    }
+  }, []);
 
   // Calculate column width
   const columnWidth = Math.max(
@@ -258,55 +408,56 @@ export function TaskBoard({
 
   // Render task in column
   const renderTask = (task: TaskRecord) => {
-    const isDragged = dragState.draggedTask?.id === task.id;
-
     return (
-      <View
+      <DraggableTaskCard
         key={task.id}
-        style={[styles.taskContainer, isDragged && styles.draggedTask]}
-      >
-        <TaskCard
-          task={task}
-          onToggleComplete={() => {
-            const newStatus =
-              task.status === 'completed' ? 'pending' : 'completed';
-            onTaskMove(task.id, newStatus);
-          }}
-          onPress={() => onTaskPress(task)}
-          showSubtasks={config.show_subtasks}
-          showDependencies={config.show_dependencies}
-          showTimeTracking={true}
-          showCollaboration={true}
-        />
-      </View>
+        task={task}
+        onToggleComplete={() => {
+          const newStatus =
+            task.status === 'completed' ? 'pending' : 'completed';
+          onTaskMove(task.id, newStatus);
+        }}
+        onPress={() => onTaskPress(task)}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        showSubtasks={config.show_subtasks}
+        showDependencies={config.show_dependencies}
+      />
     );
   };
 
   // Render column
   const renderColumn = (column: BoardColumn) => {
     const columnTasks = filteredTasksByStatus[column.status] || [];
-    const isDropTarget = dragState.dragOverColumn === column.status;
+    const isDropTarget =
+      dragState.isDragging && dragState.draggedFromColumn !== column.status;
     const isWipLimitExceeded =
       column.limit && columnTasks.length >= column.limit;
+    const columnRef = useRef<View>(null);
 
     return (
       <View
         key={column.id}
+        ref={columnRef}
         style={[
           styles.column,
           { width: columnWidth },
           isDropTarget ? styles.dropTarget : null,
           isWipLimitExceeded ? styles.wipExceeded : null,
         ]}
-        onTouchStart={() => handleDragOver(column.status)}
-        onTouchEnd={() => handleDrop(column.status)}
+        onLayout={() => {
+          handleColumnLayout(column.status, columnRef.current);
+        }}
       >
         {renderColumnHeader(column, columnTasks.length)}
 
         <ScrollView
           style={styles.columnContent}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.columnContentContainer}
+          showsVerticalScrollIndicator={true}
           nestedScrollEnabled={true}
+          scrollEnabled={!dragState.isDragging}
         >
           {columnTasks.map((task) => renderTask(task))}
 
@@ -323,77 +474,47 @@ export function TaskBoard({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Task Board</Text>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* Board Content */}
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.boardContainer}
+          contentContainerStyle={styles.boardContent}
+          scrollEnabled={!dragState.isDragging}
+          onScroll={(event) => {
+            setScrollOffset(event.nativeEvent.contentOffset.x);
+          }}
+          scrollEventThrottle={16}
+        >
+          {columns
+            .sort((a, b) => a.order - b.order)
+            .map((column) => renderColumn(column))}
+        </ScrollView>
 
-        <View style={styles.headerActions}>
-          {onFiltersChange && (
-            <TouchableOpacity
-              style={[
-                styles.headerButton,
-                showFilters && { backgroundColor: colors.primary + '15' },
-              ]}
-              onPress={() => setShowFilters(!showFilters)}
-            >
-              <Filter
-                size={20}
-                color={showFilters ? colors.primary : colors.textSecondary}
-                strokeWidth={2}
-              />
-            </TouchableOpacity>
-          )}
+        {/* Loading Overlay */}
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Loading tasks...
+            </Text>
+          </View>
+        )}
 
-          {onConfigurationChange && (
-            <TouchableOpacity
-              style={[
-                styles.headerButton,
-                showConfig && { backgroundColor: colors.primary + '15' },
-              ]}
-              onPress={() => setShowConfig(!showConfig)}
-            >
-              <Settings
-                size={20}
-                color={showConfig ? colors.primary : colors.textSecondary}
-                strokeWidth={2}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Drag Indicator */}
+        {dragState.isDragging && (
+          <View
+            style={[styles.dragIndicator, { backgroundColor: colors.surface }]}
+          >
+            <Text style={[styles.dragText, { color: colors.text }]}>
+              Drag to move "{dragState.draggedTask?.title}"
+            </Text>
+          </View>
+        )}
       </View>
-
-      {/* Board Content */}
-      <ScrollView
-        ref={scrollViewRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.boardContainer}
-        contentContainerStyle={styles.boardContent}
-      >
-        {columns
-          .sort((a, b) => a.order - b.order)
-          .map((column) => renderColumn(column))}
-      </ScrollView>
-
-      {/* Loading Overlay */}
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading tasks...
-          </Text>
-        </View>
-      )}
-
-      {/* Drag Indicator */}
-      {dragState.isDragging && (
-        <View style={styles.dragIndicator}>
-          <Text style={[styles.dragText, { color: colors.text }]}>
-            Moving "{dragState.draggedTask?.title}"
-          </Text>
-        </View>
-      )}
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
@@ -435,12 +556,13 @@ const styles = StyleSheet.create({
   column: {
     backgroundColor: 'rgba(0,0,0,0.02)',
     borderRadius: 12,
-    minHeight: 400,
+    height: '100%',
+    maxHeight: '100%',
   },
   dropTarget: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
     borderWidth: 2,
-    borderColor: '#3B82F6',
+    borderColor: '#10B981',
     borderStyle: 'dashed',
   },
   wipExceeded: {
@@ -491,15 +613,14 @@ const styles = StyleSheet.create({
   },
 
   columnContent: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  taskContainer: {
-    marginBottom: 8,
-  },
-  draggedTask: {
-    opacity: 0.5,
+  columnContentContainer: {
+    flexGrow: 1,
+    paddingBottom: 16,
   },
 
   emptyColumn: {
@@ -529,18 +650,21 @@ const styles = StyleSheet.create({
 
   dragIndicator: {
     position: 'absolute',
-    top: 100,
+    top: 80,
     left: 16,
     right: 16,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   dragText: {
-    color: 'white',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });

@@ -136,8 +136,10 @@ export default function TasksScreen() {
               setShowTaskForm(true);
             }
           }}
-          onOpenBoard={() => router.push('/(tabs)/task-board')}
+          onOpenBoard={() => router.push('/task-board')}
           onOpenAnalytics={() => router.push('/(tabs)/task-analytics')}
+          onOpenAutomations={() => router.push('/(tabs)/task-automation')}
+          onOpenDependencies={() => router.push('/(tabs)/dependency-graph')}
         />
 
         <TaskSearchBar value={searchQuery} onChangeText={setSearchQuery} />
@@ -160,7 +162,7 @@ export default function TasksScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Task Suggestions */}
-          <TaskSuggestions onRefresh={() => tasksQuery.refetch()} />
+          {/* <TaskSuggestions onRefresh={() => tasksQuery.refetch()} /> */}
 
           {/* Active Tasks */}
           <View style={styles.section}>

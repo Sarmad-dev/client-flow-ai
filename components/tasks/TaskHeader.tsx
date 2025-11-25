@@ -1,6 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Filter, Plus, Columns, BarChart3 } from 'lucide-react-native';
+import {
+  Filter,
+  Plus,
+  Columns,
+  BarChart3,
+  Zap,
+  GitBranch,
+} from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 
 interface TaskHeaderProps {
@@ -8,6 +15,8 @@ interface TaskHeaderProps {
   onOpenForm: () => void;
   onOpenBoard?: () => void;
   onOpenAnalytics?: () => void;
+  onOpenAutomations?: () => void;
+  onOpenDependencies?: () => void;
 }
 
 export function TaskHeader({
@@ -15,11 +24,12 @@ export function TaskHeader({
   onOpenForm,
   onOpenBoard,
   onOpenAnalytics,
+  onOpenAutomations,
+  onOpenDependencies,
 }: TaskHeaderProps) {
   const { colors } = useTheme();
   return (
     <View style={styles.header}>
-      <Text style={[styles.title, { color: colors.text }]}>Tasks</Text>
       <View style={styles.headerActions}>
         {onOpenAnalytics && (
           <TouchableOpacity
@@ -27,6 +37,22 @@ export function TaskHeader({
             onPress={onOpenAnalytics}
           >
             <BarChart3 size={20} color={colors.text} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
+        {onOpenAutomations && (
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.surface }]}
+            onPress={onOpenAutomations}
+          >
+            <Zap size={20} color={colors.text} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
+        {onOpenDependencies && (
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.surface }]}
+            onPress={onOpenDependencies}
+          >
+            <GitBranch size={20} color={colors.text} strokeWidth={2} />
           </TouchableOpacity>
         )}
         {onOpenBoard && (

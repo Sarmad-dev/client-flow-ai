@@ -71,10 +71,8 @@ export default function TaskBoardScreen() {
   const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [createTaskStatus, setCreateTaskStatus] = useState<string>('pending');
-  const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
 
   // Board configuration state
   const [boardConfig, setBoardConfig] = useState<BoardConfiguration>({
@@ -82,7 +80,7 @@ export default function TaskBoardScreen() {
     swimlanes: 'none',
     show_subtasks: true,
     show_dependencies: true,
-    auto_move_completed: false,
+    auto_move_completed: true,
   });
 
   // Filters state
@@ -100,7 +98,13 @@ export default function TaskBoardScreen() {
 
   const tasksQuery = useTasks();
   const updateTask = useUpdateTask();
-  const tasks = tasksQuery.data ?? [];
+  const allTasks = tasksQuery.data ?? [];
+
+  // Filter to show only parent tasks (not subtasks)
+  const tasks = useMemo(
+    () => allTasks.filter((task) => !task.parent_task_id),
+    [allTasks]
+  );
 
   const {
     guardTaskCreation,
@@ -118,23 +122,40 @@ export default function TaskBoardScreen() {
     [filters, searchQuery]
   );
 
-  // Handle task movement between columns
+  // Handle task movement between columns with optimistic updates
   const handleTaskMove = useCallback(
-    (taskId: string, newStatus: string) => {
-      const task = tasks.find((t) => t.id === taskId);
-      if (!task) return;
-
-      // Auto-complete logic
-      if (newStatus === 'completed' && boardConfig.auto_move_completed) {
-        // Additional logic for auto-completion can be added here
+    async (taskId: string, newStatus: string) => {
+      const task = allTasks.find((t) => t.id === taskId);
+      if (!task) {
+        console.log('Task not found:', taskId);
+        return;
       }
 
+      console.log('Moving task:', taskId, 'from', task.status, 'to', newStatus);
+
+      // Update the main task in the database (React Query handles optimistic updates via onMutate)
       updateTask.mutate({
         id: taskId,
         status: newStatus as any,
       });
+
+      // If marking as completed, also complete all subtasks in database
+      if (newStatus === 'completed') {
+        const subtasks = allTasks.filter((t) => t.parent_task_id === taskId);
+        console.log('Found subtasks to complete:', subtasks.length);
+
+        // Update all subtasks to completed
+        for (const subtask of subtasks) {
+          if (subtask.status !== 'completed') {
+            updateTask.mutate({
+              id: subtask.id,
+              status: 'completed',
+            });
+          }
+        }
+      }
     },
-    [tasks, updateTask, boardConfig.auto_move_completed]
+    [allTasks, updateTask]
   );
 
   // Handle task creation from specific column
@@ -210,7 +231,13 @@ export default function TaskBoardScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/tasks');
+              }
+            }}
           >
             <ArrowLeft size={24} color={colors.text} strokeWidth={2} />
           </TouchableOpacity>
@@ -218,16 +245,6 @@ export default function TaskBoardScreen() {
         </View>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={[
-              styles.headerButton,
-              { backgroundColor: colors.background },
-            ]}
-            onPress={() => setSearchQuery('')}
-          >
-            <Search size={20} color={colors.textSecondary} strokeWidth={2} />
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.headerButton,
@@ -297,143 +314,6 @@ export default function TaskBoardScreen() {
         onClose={() => setShowSubscriptionModal(false)}
         featureName={modalFeatureName}
       />
-
-      {/* Task Detail Modal */}
-      <Modal
-        visible={!!selectedTask}
-        animationType="slide"
-        onRequestClose={() => setSelectedTask(null)}
-        transparent
-      >
-        <View style={styles.detailOverlay}>
-          <View
-            style={[
-              styles.detailCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.detailHeader}>
-              <Text
-                style={[styles.detailTitle, { color: colors.text }]}
-                numberOfLines={2}
-              >
-                {selectedTask?.title}
-              </Text>
-              <TouchableOpacity
-                style={styles.detailMoreButton}
-                onPress={() => {
-                  // Navigate to full task detail screen
-                  setSelectedTask(null);
-                  // router.push(`/tasks/${selectedTask?.id}`);
-                }}
-              >
-                <MoreVertical
-                  size={20}
-                  color={colors.textSecondary}
-                  strokeWidth={2}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setSelectedTask(null)}>
-                <Text style={{ color: colors.primary, fontWeight: '600' }}>
-                  Close
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {selectedTask?.description && (
-              <Text
-                style={[
-                  styles.detailDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                {selectedTask.description}
-              </Text>
-            )}
-
-            <View style={styles.detailInfo}>
-              <View style={styles.detailInfoRow}>
-                <Text style={[styles.detailLabel, { color: colors.text }]}>
-                  Status:
-                </Text>
-                <Text
-                  style={[styles.detailValue, { color: colors.textSecondary }]}
-                >
-                  {selectedTask?.status}
-                </Text>
-              </View>
-
-              <View style={styles.detailInfoRow}>
-                <Text style={[styles.detailLabel, { color: colors.text }]}>
-                  Priority:
-                </Text>
-                <Text
-                  style={[styles.detailValue, { color: colors.textSecondary }]}
-                >
-                  {selectedTask?.priority}
-                </Text>
-              </View>
-
-              {selectedTask?.due_date && (
-                <View style={styles.detailInfoRow}>
-                  <Text style={[styles.detailLabel, { color: colors.text }]}>
-                    Due:
-                  </Text>
-                  <Text
-                    style={[
-                      styles.detailValue,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {new Date(selectedTask.due_date).toLocaleDateString()}
-                  </Text>
-                </View>
-              )}
-
-              {selectedTask?.progress_percentage !== undefined && (
-                <View style={styles.detailInfoRow}>
-                  <Text style={[styles.detailLabel, { color: colors.text }]}>
-                    Progress:
-                  </Text>
-                  <Text
-                    style={[
-                      styles.detailValue,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {selectedTask.progress_percentage}%
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.detailActions}>
-              <TouchableOpacity
-                style={[
-                  styles.detailButton,
-                  { backgroundColor: colors.primary },
-                ]}
-                onPress={() => {
-                  if (selectedTask) {
-                    const newStatus =
-                      selectedTask.status === 'completed'
-                        ? 'pending'
-                        : 'completed';
-                    handleTaskMove(selectedTask.id, newStatus);
-                    setSelectedTask(null);
-                  }
-                }}
-              >
-                <Text style={styles.detailButtonText}>
-                  {selectedTask?.status === 'completed'
-                    ? 'Mark Pending'
-                    : 'Mark Complete'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

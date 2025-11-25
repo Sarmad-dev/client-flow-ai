@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '@/hooks/useTheme';
 import { AutomationRuleWithMetadata } from '@/hooks/useTaskAutomation';
 import {
@@ -20,6 +21,7 @@ export default function AutomationRuleCard({
   onEdit,
 }: AutomationRuleCardProps) {
   const theme = useTheme();
+  const queryClient = useQueryClient();
   const toggleRule = useToggleAutomationRule();
   const deleteRule = useDeleteAutomationRule();
 
@@ -29,6 +31,8 @@ export default function AutomationRuleCard({
         id: rule.id,
         is_active: !rule.is_active,
       });
+      // Invalidate queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ['automation', 'rules'] });
     } catch (error) {
       console.error('Error toggling automation rule:', error);
       Alert.alert('Error', 'Failed to toggle automation rule');

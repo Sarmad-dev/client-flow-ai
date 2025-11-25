@@ -77,6 +77,10 @@ export function useSequenceAnalytics(sequenceId?: string | null) {
             enrollments?.map((e: any) => e.id) || []
           );
 
+        console.log('Enrollments: ', user.id);
+
+        console.log('Email Error: ', emailError);
+        console.log('Emails: ', emails);
         if (emailError) throw emailError;
 
         const emailsSent = emails?.length || 0;
@@ -110,6 +114,8 @@ export function useSequenceAnalytics(sequenceId?: string | null) {
           reply_rate: Math.round(replyRate * 10) / 10,
         });
       }
+
+      console.log('Analytics: ', analytics);
 
       return analytics;
     },

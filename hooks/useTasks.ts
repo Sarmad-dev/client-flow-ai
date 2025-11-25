@@ -126,6 +126,9 @@ export function useCreateTask() {
 
 export function useToggleTaskStatus() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id;
+
   return useMutation({
     mutationFn: async (payload: { id: string; to: TaskRecord['status'] }) => {
       // Get the current task to track old status
@@ -161,7 +164,42 @@ export function useToggleTaskStatus() {
 
       return data;
     },
-    onSuccess: () => {
+    onMutate: async (payload) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: tasksKeys.list(userId) });
+
+      // Snapshot the previous value
+      const previousTasks = queryClient.getQueryData<TaskRecord[]>(
+        tasksKeys.list(userId)
+      );
+
+      // Optimistically update to the new value
+      if (previousTasks) {
+        queryClient.setQueryData<TaskRecord[]>(
+          tasksKeys.list(userId),
+          (old) => {
+            if (!old) return old;
+            return old.map((task) =>
+              task.id === payload.id ? { ...task, status: payload.to } : task
+            );
+          }
+        );
+      }
+
+      return { previousTasks };
+    },
+    onError: (err, payload, context) => {
+      // Roll back on error
+      if (context?.previousTasks) {
+        queryClient.setQueryData<TaskRecord[]>(
+          tasksKeys.list(userId),
+          context.previousTasks
+        );
+      }
+      console.error('Failed to toggle task status:', err);
+    },
+    onSettled: () => {
+      // Always refetch to ensure sync with server
       queryClient.invalidateQueries({ queryKey: tasksKeys.all as any });
     },
   });
@@ -169,6 +207,9 @@ export function useToggleTaskStatus() {
 
 export function useUpdateTask() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id;
+
   return useMutation({
     mutationFn: async (
       payload: { id: string } & Partial<TaskRecord>
@@ -211,7 +252,43 @@ export function useUpdateTask() {
 
       return data as unknown as TaskRecord;
     },
-    onSuccess: () => {
+    onMutate: async (payload) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: tasksKeys.list(userId) });
+
+      // Snapshot the previous value
+      const previousTasks = queryClient.getQueryData<TaskRecord[]>(
+        tasksKeys.list(userId)
+      );
+
+      // Optimistically update to the new value
+      if (previousTasks) {
+        queryClient.setQueryData<TaskRecord[]>(
+          tasksKeys.list(userId),
+          (old) => {
+            if (!old) return old;
+            return old.map((task) =>
+              task.id === payload.id ? { ...task, ...payload } : task
+            );
+          }
+        );
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousTasks };
+    },
+    onError: (err, payload, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousTasks) {
+        queryClient.setQueryData<TaskRecord[]>(
+          tasksKeys.list(userId),
+          context.previousTasks
+        );
+      }
+      console.error('Failed to update task:', err);
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure we're in sync with the server
       queryClient.invalidateQueries({ queryKey: tasksKeys.all as any });
     },
   });
