@@ -17,7 +17,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { CircleCheck as CheckCircle, Sparkles, ArrowRight } from 'lucide-react-native';
+import {
+  CircleCheck as CheckCircle,
+  Sparkles,
+  ArrowRight,
+} from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -25,7 +29,7 @@ import { supabase } from '@/lib/supabase';
 export default function CompleteScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
-  
+
   const checkScale = useSharedValue(0);
   const checkRotation = useSharedValue(0);
   const titleOpacity = useSharedValue(0);
@@ -40,13 +44,14 @@ export default function CompleteScreen() {
       withTiming(360, { duration: 800 }),
       withTiming(0, { duration: 0 })
     );
-    
+
     titleOpacity.value = withDelay(400, withTiming(1, { duration: 800 }));
     subtitleOpacity.value = withDelay(600, withTiming(1, { duration: 800 }));
     buttonOpacity.value = withDelay(800, withTiming(1, { duration: 800 }));
-    
+
     // Sparkle celebration
-    sparkleScale.value = withDelay(1000,
+    sparkleScale.value = withDelay(
+      1000,
       withSequence(
         withSpring(1, { damping: 8 }),
         withSpring(1.3, { damping: 8 }),
@@ -58,23 +63,29 @@ export default function CompleteScreen() {
   const checkAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: checkScale.value },
-      { rotate: `${checkRotation.value}deg` }
+      { rotate: `${checkRotation.value}deg` },
     ],
   }));
 
   const titleAnimatedStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,
-    transform: [{ translateY: interpolate(titleOpacity.value, [0, 1], [30, 0]) }],
+    transform: [
+      { translateY: interpolate(titleOpacity.value, [0, 1], [30, 0]) },
+    ],
   }));
 
   const subtitleAnimatedStyle = useAnimatedStyle(() => ({
     opacity: subtitleOpacity.value,
-    transform: [{ translateY: interpolate(subtitleOpacity.value, [0, 1], [30, 0]) }],
+    transform: [
+      { translateY: interpolate(subtitleOpacity.value, [0, 1], [30, 0]) },
+    ],
   }));
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
     opacity: buttonOpacity.value,
-    transform: [{ translateY: interpolate(buttonOpacity.value, [0, 1], [30, 0]) }],
+    transform: [
+      { translateY: interpolate(buttonOpacity.value, [0, 1], [30, 0]) },
+    ],
   }));
 
   const sparkleAnimatedStyle = useAnimatedStyle(() => ({
@@ -87,8 +98,14 @@ export default function CompleteScreen() {
         .from('user_onboarding')
         .update({
           completed: true,
-          current_step: 4,
-          steps_completed: ['welcome', 'features', 'setup', 'complete'],
+          current_step: 5,
+          steps_completed: [
+            'welcome',
+            'features',
+            'setup',
+            'organization',
+            'complete',
+          ],
           completed_at: new Date().toISOString(),
         })
         .eq('user_id', user?.id);
@@ -102,9 +119,15 @@ export default function CompleteScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <LinearGradient
-        colors={[colors.success + '10', colors.primary + '10', colors.background]}
+        colors={[
+          colors.success + '10',
+          colors.primary + '10',
+          colors.background,
+        ]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -122,45 +145,75 @@ export default function CompleteScreen() {
                 <CheckCircle size={64} color="#FFFFFF" strokeWidth={2} />
               </LinearGradient>
             </Animated.View>
-            
-            <Animated.View style={[styles.sparkleContainer, sparkleAnimatedStyle]}>
+
+            <Animated.View
+              style={[styles.sparkleContainer, sparkleAnimatedStyle]}
+            >
               <Sparkles size={32} color={colors.accent} strokeWidth={2} />
             </Animated.View>
           </View>
 
           {/* Text Section */}
           <View style={styles.textSection}>
-            <Animated.Text style={[styles.title, { color: colors.text }, titleAnimatedStyle]}>
+            <Animated.Text
+              style={[styles.title, { color: colors.text }, titleAnimatedStyle]}
+            >
               You're all set!
             </Animated.Text>
-            
-            <Animated.Text style={[styles.subtitle, { color: colors.textSecondary }, subtitleAnimatedStyle]}>
-              Welcome to ClientFlow AI! You're ready to start managing your clients, 
-              capturing tasks with voice, and growing your business like never before.
+
+            <Animated.Text
+              style={[
+                styles.subtitle,
+                { color: colors.textSecondary },
+                subtitleAnimatedStyle,
+              ]}
+            >
+              Welcome to ClientFlow AI! You're ready to start managing your
+              clients, capturing tasks with voice, and growing your business
+              like never before.
             </Animated.Text>
           </View>
 
           {/* Features Summary */}
-          <Animated.View style={[styles.featuresContainer, buttonAnimatedStyle]}>
-            <Text style={[styles.featuresTitle, { color: colors.text }]}>What's next?</Text>
-            
+          <Animated.View
+            style={[styles.featuresContainer, buttonAnimatedStyle]}
+          >
+            <Text style={[styles.featuresTitle, { color: colors.text }]}>
+              What's next?
+            </Text>
+
             <View style={styles.featuresList}>
               <View style={styles.featureItem}>
-                <View style={[styles.featureBullet, { backgroundColor: colors.primary }]} />
+                <View
+                  style={[
+                    styles.featureBullet,
+                    { backgroundColor: colors.primary },
+                  ]}
+                />
                 <Text style={[styles.featureText, { color: colors.text }]}>
                   Try voice recording to create your first task
                 </Text>
               </View>
-              
+
               <View style={styles.featureItem}>
-                <View style={[styles.featureBullet, { backgroundColor: colors.secondary }]} />
+                <View
+                  style={[
+                    styles.featureBullet,
+                    { backgroundColor: colors.secondary },
+                  ]}
+                />
                 <Text style={[styles.featureText, { color: colors.text }]}>
                   Add your first client or discover leads on the map
                 </Text>
               </View>
-              
+
               <View style={styles.featureItem}>
-                <View style={[styles.featureBullet, { backgroundColor: colors.accent }]} />
+                <View
+                  style={[
+                    styles.featureBullet,
+                    { backgroundColor: colors.accent },
+                  ]}
+                />
                 <Text style={[styles.featureText, { color: colors.text }]}>
                   Schedule meetings and track your progress
                 </Text>

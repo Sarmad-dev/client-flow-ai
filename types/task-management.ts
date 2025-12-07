@@ -116,7 +116,8 @@ export interface AutomationRule {
     | 'task_completed'
     | 'task_overdue'
     | 'status_changed'
-    | 'time_tracked';
+    | 'time_tracked'
+    | 'due_date_approaching';
   conditions: Record<string, any>;
   actions: AutomationAction[];
   enabled: boolean;
@@ -124,7 +125,22 @@ export interface AutomationRule {
 
 // Automation Action interface for automated task actions
 export interface AutomationAction {
-  type: 'create_task' | 'send_notification' | 'update_status' | 'assign_user';
+  type:
+    | 'create_task'
+    | 'send_notification'
+    | 'update_status'
+    | 'update_priority'
+    | 'assign_user'
+    | 'create_follow_up'
+    | 'reschedule'
+    | 'add_dependency'
+    | 'create_subtasks'
+    | 'update_related_tasks'
+    | 'update_dependencies'
+    | 'log_activity'
+    | 'update_estimates'
+    | 'create_report'
+    | 'create_reminder';
   parameters: Record<string, any>;
 }
 

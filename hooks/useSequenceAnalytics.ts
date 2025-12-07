@@ -50,7 +50,7 @@ export function useSequenceAnalytics(sequenceId?: string | null) {
         // Get enrollment stats
         const { data: enrollments, error: enrollError } = await supabase
           .from('sequence_enrollments')
-          .select('status')
+          .select('*')
           .eq('sequence_id', sequence.id);
 
         if (enrollError) throw enrollError;
@@ -77,10 +77,6 @@ export function useSequenceAnalytics(sequenceId?: string | null) {
             enrollments?.map((e: any) => e.id) || []
           );
 
-        console.log('Enrollments: ', user.id);
-
-        console.log('Email Error: ', emailError);
-        console.log('Emails: ', emails);
         if (emailError) throw emailError;
 
         const emailsSent = emails?.length || 0;

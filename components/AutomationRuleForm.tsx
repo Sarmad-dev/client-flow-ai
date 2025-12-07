@@ -254,6 +254,41 @@ export default function AutomationRuleForm({
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
+    availableConditionsContainer: {
+      backgroundColor: theme.colors.primary + '10',
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
+    },
+    availableConditionsLabel: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: theme.colors.primary,
+      marginBottom: 8,
+    },
+    conditionChipsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    conditionChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.background,
+      borderRadius: 16,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '40',
+      gap: 4,
+    },
+    conditionChipText: {
+      fontSize: 12,
+      color: theme.colors.text,
+      fontWeight: '500',
+    },
     conditionItem: {
       backgroundColor: theme.colors.surface,
       borderRadius: 8,
@@ -445,27 +480,37 @@ export default function AutomationRuleForm({
             Add conditions to control when this rule should execute
           </Text>
 
-          {Object.entries(formData.conditions).map(([key, value]) => (
-            <View key={key} style={styles.conditionItem}>
-              <View style={styles.conditionHeader}>
-                <Text style={styles.conditionTitle}>Condition</Text>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => removeCondition(key)}
-                >
-                  <Ionicons name="close" size={20} color={theme.colors.error} />
-                </TouchableOpacity>
+          {selectedTrigger &&
+            selectedTrigger.available_conditions.length > 0 && (
+              <View style={styles.availableConditionsContainer}>
+                <Text style={styles.availableConditionsLabel}>
+                  Available conditions for this trigger:
+                </Text>
+                <View style={styles.conditionChipsContainer}>
+                  {selectedTrigger.available_conditions.map((condition) => (
+                    <View key={condition} style={styles.conditionChip}>
+                      <Ionicons
+                        name="information-circle-outline"
+                        size={14}
+                        color={theme.colors.primary}
+                      />
+                      <Text style={styles.conditionChipText}>{condition}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-              <TextInput
-                style={styles.input}
-                value={
-                  typeof value === 'string' ? value : JSON.stringify(value)
-                }
-                onChangeText={(text) => updateCondition(key, text)}
-                placeholder="Enter condition (e.g., task.priority = 'high')"
-                placeholderTextColor={theme.colors.textSecondary}
-              />
-            </View>
+            )}
+
+          {Object.entries(formData.conditions).map(([key, value]) => (
+            <ConditionEditor
+              key={key}
+              conditionKey={key}
+              value={value}
+              availableConditions={selectedTrigger?.available_conditions || []}
+              onUpdate={(newValue) => updateCondition(key, newValue)}
+              onRemove={() => removeCondition(key)}
+              theme={theme}
+            />
           ))}
 
           <TouchableOpacity style={styles.addButton} onPress={addCondition}>
@@ -539,6 +584,362 @@ export default function AutomationRuleForm({
   );
 }
 
+interface ConditionEditorProps {
+  conditionKey: string;
+  value: any;
+  availableConditions: string[];
+  onUpdate: (value: any) => void;
+  onRemove: () => void;
+  theme: any;
+}
+
+function ConditionEditor({
+  value,
+  availableConditions,
+  onUpdate,
+  onRemove,
+  theme,
+}: ConditionEditorProps) {
+  const [selectedCondition, setSelectedCondition] = useState<string>(
+    typeof value === 'object' && value.field ? value.field : ''
+  );
+  const [operator, setOperator] = useState<string>(
+    typeof value === 'object' && value.operator ? value.operator : '='
+  );
+  const [conditionValue, setConditionValue] = useState<string>(
+    typeof value === 'object' && value.value
+      ? String(value.value)
+      : typeof value === 'string'
+      ? value
+      : ''
+  );
+  const [showConditionPicker, setShowConditionPicker] = useState(false);
+  const [showOperatorPicker, setShowOperatorPicker] = useState(false);
+
+  // Determine which operators are appropriate based on the selected condition
+  const getOperatorsForCondition = (conditionField: string) => {
+    // Numeric fields
+    const numericFields = [
+      'time_entry.duration',
+      'task.estimated_hours',
+      'task.actual_hours',
+      'days_overdue',
+      'days_until_due',
+      'task.progress_percentage',
+    ];
+
+    // Status/Priority fields
+    const statusFields = [
+      'task.status',
+      'task.from_status',
+      'task.to_status',
+      'task.priority',
+    ];
+
+    // Tag/Category fields
+    const categoryFields = ['task.tag', 'task.client_id'];
+
+    // Boolean fields
+    const booleanFields = ['task.has_subtasks', 'task.is_template'];
+
+    if (numericFields.some((field) => conditionField.includes(field))) {
+      return [
+        { value: '=', label: 'Equals' },
+        { value: '!=', label: 'Not Equals' },
+        { value: '>', label: 'Greater Than' },
+        { value: '>=', label: 'Greater or Equal' },
+        { value: '<', label: 'Less Than' },
+        { value: '<=', label: 'Less or Equal' },
+      ];
+    }
+
+    if (statusFields.some((field) => conditionField.includes(field))) {
+      return [
+        { value: '=', label: 'Equals' },
+        { value: '!=', label: 'Not Equals' },
+        { value: 'in', label: 'Is One Of' },
+        { value: 'not_in', label: 'Is Not One Of' },
+        { value: 'changed_to', label: 'Changed To' },
+        { value: 'changed_from', label: 'Changed From' },
+      ];
+    }
+
+    if (categoryFields.some((field) => conditionField.includes(field))) {
+      return [
+        { value: '=', label: 'Equals' },
+        { value: '!=', label: 'Not Equals' },
+        { value: 'in', label: 'Is One Of' },
+        { value: 'not_in', label: 'Is Not One Of' },
+      ];
+    }
+
+    if (booleanFields.some((field) => conditionField.includes(field))) {
+      return [
+        { value: '=', label: 'Equals (true/false)' },
+        { value: '!=', label: 'Not Equals (true/false)' },
+      ];
+    }
+
+    // Default operators for string/general fields
+    return [
+      { value: '=', label: 'Equals' },
+      { value: '!=', label: 'Not Equals' },
+      { value: 'contains', label: 'Contains' },
+      { value: 'starts_with', label: 'Starts With' },
+      { value: 'ends_with', label: 'Ends With' },
+      { value: 'in', label: 'Is One Of' },
+      { value: 'not_in', label: 'Is Not One Of' },
+    ];
+  };
+
+  const operators = getOperatorsForCondition(selectedCondition);
+
+  const getPlaceholderForOperator = (op: string, field: string) => {
+    if (op === 'in' || op === 'not_in') {
+      if (field.includes('status')) {
+        return 'e.g., pending,in_progress,completed';
+      }
+      if (field.includes('priority')) {
+        return 'e.g., low,medium,high,urgent';
+      }
+      if (field.includes('tag')) {
+        return 'e.g., meeting,call,follow-up';
+      }
+      return 'Enter comma-separated values';
+    }
+
+    if (field.includes('status')) {
+      return 'e.g., pending, in_progress, completed, cancelled';
+    }
+    if (field.includes('priority')) {
+      return 'e.g., low, medium, high, urgent';
+    }
+    if (field.includes('tag')) {
+      return 'e.g., meeting, call, follow-up';
+    }
+    if (
+      field.includes('days') ||
+      field.includes('hours') ||
+      field.includes('duration')
+    ) {
+      return 'Enter a number';
+    }
+    if (field.includes('has_') || field.includes('is_')) {
+      return 'true or false';
+    }
+
+    return 'Enter value';
+  };
+
+  const updateConditionObject = (field?: string, op?: string, val?: string) => {
+    const newField = field ?? selectedCondition;
+    const newOp = op ?? operator;
+    const newVal = val ?? conditionValue;
+
+    if (newField && newOp && newVal) {
+      onUpdate({
+        field: newField,
+        operator: newOp,
+        value: newVal,
+      });
+    }
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    title: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: theme.colors.text,
+    },
+    removeButton: {
+      padding: 4,
+    },
+    row: {
+      marginBottom: 8,
+    },
+    label: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: theme.colors.textSecondary,
+      marginBottom: 6,
+    },
+    pickerButton: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 6,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    pickerButtonText: {
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+    pickerButtonPlaceholder: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    pickerModal: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginTop: 4,
+      maxHeight: 200,
+    },
+    pickerOption: {
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    pickerOptionSelected: {
+      backgroundColor: theme.colors.primary + '20',
+    },
+    pickerOptionText: {
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+    input: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 6,
+      padding: 10,
+      fontSize: 14,
+      color: theme.colors.text,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+  });
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Condition</Text>
+        <TouchableOpacity style={styles.removeButton} onPress={onRemove}>
+          <Ionicons name="close" size={20} color={theme.colors.error} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Condition Field Selector */}
+      <View style={styles.row}>
+        <Text style={styles.label}>Field</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowConditionPicker(!showConditionPicker)}
+        >
+          <Text
+            style={
+              selectedCondition
+                ? styles.pickerButtonText
+                : styles.pickerButtonPlaceholder
+            }
+          >
+            {selectedCondition || 'Select a condition field'}
+          </Text>
+          <Ionicons
+            name={showConditionPicker ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
+        {showConditionPicker && (
+          <View style={styles.pickerModal}>
+            <ScrollView>
+              {availableConditions.map((condition) => (
+                <TouchableOpacity
+                  key={condition}
+                  style={[
+                    styles.pickerOption,
+                    selectedCondition === condition &&
+                      styles.pickerOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedCondition(condition);
+                    setShowConditionPicker(false);
+                    updateConditionObject(condition, undefined, undefined);
+                  }}
+                >
+                  <Text style={styles.pickerOptionText}>{condition}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
+      {/* Operator Selector */}
+      <View style={styles.row}>
+        <Text style={styles.label}>Operator</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowOperatorPicker(!showOperatorPicker)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {operators.find((op) => op.value === operator)?.label || 'Equals'}
+          </Text>
+          <Ionicons
+            name={showOperatorPicker ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
+        {showOperatorPicker && (
+          <View style={styles.pickerModal}>
+            <ScrollView>
+              {operators.map((op) => (
+                <TouchableOpacity
+                  key={op.value}
+                  style={[
+                    styles.pickerOption,
+                    operator === op.value && styles.pickerOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setOperator(op.value);
+                    setShowOperatorPicker(false);
+                    updateConditionObject(undefined, op.value, undefined);
+                  }}
+                >
+                  <Text style={styles.pickerOptionText}>{op.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
+      {/* Value Input */}
+      <View style={styles.row}>
+        <Text style={styles.label}>Value</Text>
+        <TextInput
+          style={styles.input}
+          value={conditionValue}
+          onChangeText={(text) => {
+            setConditionValue(text);
+            updateConditionObject(undefined, undefined, text);
+          }}
+          placeholder={getPlaceholderForOperator(operator, selectedCondition)}
+          placeholderTextColor={theme.colors.textSecondary}
+        />
+      </View>
+    </View>
+  );
+}
+
 interface ActionEditorProps {
   action: AutomationAction;
   availableActions: string[];
@@ -561,9 +962,15 @@ function ActionEditor({
     { value: 'send_notification', label: 'Send Notification' },
     { value: 'assign_user', label: 'Assign User' },
     { value: 'create_follow_up', label: 'Create Follow-up' },
-    { value: 'reschedule', label: 'Reschedule' },
-    { value: 'add_dependency', label: 'Add Dependency' },
+    { value: 'reschedule', label: 'Reschedule Task' },
+    { value: 'add_dependency', label: 'Add Task Dependency' },
     { value: 'create_subtasks', label: 'Create Subtasks' },
+    { value: 'update_related_tasks', label: 'Update Related Tasks' },
+    { value: 'update_dependencies', label: 'Update Dependencies' },
+    // { value: 'log_activity', label: 'Log Activity' },
+    // { value: 'update_estimates', label: 'Update Time Estimates' },
+    // { value: 'create_report', label: 'Create Report' },
+    // { value: 'create_reminder', label: 'Create Reminder' },
   ];
 
   const styles = StyleSheet.create({
@@ -893,6 +1300,185 @@ function ActionParametersEditor({
               />
             </View>
           </>
+        );
+
+      case 'reschedule':
+        return (
+          <View style={styles.parameterRow}>
+            <Text style={styles.parameterLabel}>New Due Date (relative)</Text>
+            <TextInput
+              style={styles.parameterInput}
+              value={parameters.due_date || ''}
+              onChangeText={(text) => updateParameter('due_date', text)}
+              placeholder="+1 day, +1 week, etc."
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
+        );
+
+      case 'assign_user':
+        return (
+          <View style={styles.parameterRow}>
+            <Text style={styles.parameterLabel}>User ID</Text>
+            <TextInput
+              style={styles.parameterInput}
+              value={parameters.user_id || ''}
+              onChangeText={(text) => updateParameter('user_id', text)}
+              placeholder="Enter user ID to assign"
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
+        );
+
+      case 'add_dependency':
+        return (
+          <View style={styles.parameterRow}>
+            <Text style={styles.parameterLabel}>Depends On Task ID</Text>
+            <TextInput
+              style={styles.parameterInput}
+              value={parameters.depends_on_task_id || ''}
+              onChangeText={(text) =>
+                updateParameter('depends_on_task_id', text)
+              }
+              placeholder="Enter task ID this depends on"
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
+        );
+
+      case 'create_subtasks':
+        return (
+          <View style={styles.parameterRow}>
+            <Text style={styles.parameterLabel}>Subtasks (JSON array)</Text>
+            <TextInput
+              style={[styles.parameterInput, styles.jsonInput]}
+              value={
+                parameters.subtasks
+                  ? JSON.stringify(parameters.subtasks, null, 2)
+                  : ''
+              }
+              onChangeText={(text) => {
+                try {
+                  const parsed = JSON.parse(text);
+                  updateParameter('subtasks', parsed);
+                } catch {
+                  // Invalid JSON
+                }
+              }}
+              placeholder='[{"title": "Subtask 1", "priority": "medium"}]'
+              placeholderTextColor={theme.colors.textSecondary}
+              multiline
+            />
+          </View>
+        );
+
+      case 'update_related_tasks':
+        return (
+          <>
+            <View style={styles.parameterRow}>
+              <Text style={styles.parameterLabel}>Update Field</Text>
+              <TextInput
+                style={styles.parameterInput}
+                value={parameters.field || ''}
+                onChangeText={(text) => updateParameter('field', text)}
+                placeholder="e.g., status, priority"
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+            </View>
+            <View style={styles.parameterRow}>
+              <Text style={styles.parameterLabel}>New Value</Text>
+              <TextInput
+                style={styles.parameterInput}
+                value={parameters.value || ''}
+                onChangeText={(text) => updateParameter('value', text)}
+                placeholder="Enter new value"
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+            </View>
+          </>
+        );
+
+      case 'log_activity':
+        return (
+          <>
+            <View style={styles.parameterRow}>
+              <Text style={styles.parameterLabel}>Activity Type</Text>
+              <TextInput
+                style={styles.parameterInput}
+                value={parameters.activity_type || ''}
+                onChangeText={(text) => updateParameter('activity_type', text)}
+                placeholder="e.g., status_change, automation"
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+            </View>
+            <View style={styles.parameterRow}>
+              <Text style={styles.parameterLabel}>Description</Text>
+              <TextInput
+                style={styles.parameterInput}
+                value={parameters.description || ''}
+                onChangeText={(text) => updateParameter('description', text)}
+                placeholder="Activity description"
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+            </View>
+          </>
+        );
+
+      case 'update_estimates':
+        return (
+          <View style={styles.parameterRow}>
+            <Text style={styles.parameterLabel}>Estimated Hours</Text>
+            <TextInput
+              style={styles.parameterInput}
+              value={parameters.estimated_hours || ''}
+              onChangeText={(text) => updateParameter('estimated_hours', text)}
+              placeholder="Enter hours (number)"
+              placeholderTextColor={theme.colors.textSecondary}
+              keyboardType="numeric"
+            />
+          </View>
+        );
+
+      case 'create_reminder':
+        return (
+          <>
+            <View style={styles.parameterRow}>
+              <Text style={styles.parameterLabel}>
+                Reminder Time (relative)
+              </Text>
+              <TextInput
+                style={styles.parameterInput}
+                value={parameters.reminder_time || ''}
+                onChangeText={(text) => updateParameter('reminder_time', text)}
+                placeholder="+1 hour, +1 day, etc."
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+            </View>
+            <View style={styles.parameterRow}>
+              <Text style={styles.parameterLabel}>Message</Text>
+              <TextInput
+                style={styles.parameterInput}
+                value={parameters.message || ''}
+                onChangeText={(text) => updateParameter('message', text)}
+                placeholder="Reminder message"
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+            </View>
+          </>
+        );
+
+      case 'create_report':
+        return (
+          <View style={styles.parameterRow}>
+            <Text style={styles.parameterLabel}>Report Type</Text>
+            <TextInput
+              style={styles.parameterInput}
+              value={parameters.report_type || ''}
+              onChangeText={(text) => updateParameter('report_type', text)}
+              placeholder="e.g., time_summary, task_completion"
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
         );
 
       default:

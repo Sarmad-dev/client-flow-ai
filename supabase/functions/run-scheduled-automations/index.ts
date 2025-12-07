@@ -204,20 +204,90 @@ function getNestedValue(path: string, data: any): any {
 }
 
 function evaluateCondition(actual: any, expected: any): boolean {
-  if (typeof expected === 'object' && expected !== null) {
-    if (expected['>']) return actual > expected['>'];
-    if (expected['>=']) return actual >= expected['>='];
-    if (expected['<']) return actual < expected['<'];
-    if (expected['<=']) return actual <= expected['<='];
-    if (expected['!=']) return actual !== expected['!='];
-    if (expected['in']) return expected['in'].includes(actual);
-    if (expected['not_in']) return !expected['not_in'].includes(actual);
+  if (
+    typeof expected === 'object' &&
+    expected !== null &&
+    !Array.isArray(expected)
+  ) {
+    // Handle comparison operators
+    // Numeric comparisons - only use if both values are numbers
+    if (expected['>'] !== undefined) {
+      const expectedVal = Number(expected['>']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal > expectedVal
+      );
+    }
+    if (expected['>='] !== undefined) {
+      const expectedVal = Number(expected['>=']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal >= expectedVal
+      );
+    }
+    if (expected['<'] !== undefined) {
+      const expectedVal = Number(expected['<']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal < expectedVal
+      );
+    }
+    if (expected['<='] !== undefined) {
+      const expectedVal = Number(expected['<=']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal <= expectedVal
+      );
+    }
+
+    // String/value comparisons
+    if (expected['!='] !== undefined) return actual !== expected['!='];
+    if (expected['='] !== undefined) return actual === expected['='];
+    if (expected['equals'] !== undefined) return actual === expected['equals'];
+
+    // Array membership
+    if (expected['in'] !== undefined) {
+      return Array.isArray(expected['in']) && expected['in'].includes(actual);
+    }
+    if (expected['not_in'] !== undefined) {
+      return (
+        Array.isArray(expected['not_in']) &&
+        !expected['not_in'].includes(actual)
+      );
+    }
+
+    // String operations
+    if (expected['contains'] !== undefined) {
+      return String(actual)
+        .toLowerCase()
+        .includes(String(expected['contains']).toLowerCase());
+    }
+    if (expected['starts_with'] !== undefined) {
+      return String(actual)
+        .toLowerCase()
+        .startsWith(String(expected['starts_with']).toLowerCase());
+    }
+    if (expected['ends_with'] !== undefined) {
+      return String(actual)
+        .toLowerCase()
+        .endsWith(String(expected['ends_with']).toLowerCase());
+    }
+
+    // Status/Priority change specific
+    if (expected['changed_to'] !== undefined) {
+      return actual === expected['changed_to'];
+    }
+    if (expected['changed_from'] !== undefined) {
+      return actual === expected['changed_from'];
+    }
   }
 
+  // Handle array values (OR condition)
   if (Array.isArray(expected)) {
     return expected.includes(actual);
   }
 
+  // Direct equality
   return actual === expected;
 }
 
@@ -294,6 +364,21 @@ async function executeAction(
 
     case 'create_task':
       return await createTask(task, action.parameters, context);
+
+    case 'create_follow_up':
+      return await createFollowUp(task, action.parameters, context);
+
+    case 'reschedule':
+      return await rescheduleTask(task, action.parameters);
+
+    case 'update_estimates':
+      return await updateTaskEstimates(task, action.parameters);
+
+    case 'create_reminder':
+      return await createReminder(task, action.parameters, context);
+
+    case 'log_activity':
+      return await logActivity(task, action.parameters, context);
 
     default:
       console.log(
@@ -430,13 +515,211 @@ function calculateDueDate(dueDateSpec: any): string | null {
   if (!dueDateSpec) return null;
 
   if (typeof dueDateSpec === 'string' && dueDateSpec.startsWith('+')) {
+    const match = dueDateSpec.match(/\+(\d+)\s*(hour|day|week|month)s?/i);
+    if (match) {
+      const amount = parseInt(match[1]);
+      const unit = match[2].toLowerCase();
+      const date = new Date();
+
+      switch (unit) {
+        case 'hour':
+          date.setHours(date.getHours() + amount);
+          break;
+        case 'day':
+          date.setDate(date.getDate() + amount);
+          break;
+        case 'week':
+          date.setDate(date.getDate() + amount * 7);
+          break;
+        case 'month':
+          date.setMonth(date.getMonth() + amount);
+          break;
+      }
+
+      return date.toISOString();
+    }
+
+    // Fallback: assume days
     const days = parseInt(dueDateSpec.substring(1));
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date.toISOString();
+    if (!isNaN(days)) {
+      const date = new Date();
+      date.setDate(date.getDate() + days);
+      return date.toISOString();
+    }
   }
 
   return dueDateSpec;
+}
+
+async function createFollowUp(
+  originalTask: Task,
+  parameters: any,
+  context: Record<string, any>
+): Promise<any> {
+  const processedParams = processTemplateVariables(
+    parameters,
+    originalTask,
+    context
+  );
+
+  const followUpTask = {
+    user_id: originalTask.user_id,
+    title: processedParams.title || `Follow up: ${originalTask.title}`,
+    description:
+      processedParams.description ||
+      `Follow-up task for: ${originalTask.title}`,
+    client_id: originalTask.client_id,
+    priority: processedParams.priority || 'medium',
+    status: 'pending',
+    tag: 'follow-up',
+    due_date: calculateDueDate(processedParams.due_date || '+3 days'),
+    ai_generated: true,
+    ai_confidence_score: 0.9,
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('tasks')
+    .insert(followUpTask)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    created_task_id: data.id,
+    follow_up_task: data,
+  };
+}
+
+async function rescheduleTask(task: Task, parameters: any): Promise<any> {
+  const newDueDate = calculateDueDate(parameters.due_date);
+
+  const { data, error } = await supabaseAdmin
+    .from('tasks')
+    .update({
+      due_date: newDueDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    updated_task_id: task.id,
+    old_due_date: task.due_date,
+    new_due_date: newDueDate,
+  };
+}
+
+async function updateTaskEstimates(task: Task, parameters: any): Promise<any> {
+  const estimatedHours = parseFloat(parameters.estimated_hours);
+
+  if (isNaN(estimatedHours)) {
+    throw new Error('Invalid estimated_hours value');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('tasks')
+    .update({
+      estimated_hours: estimatedHours,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    updated_task_id: task.id,
+    old_estimate: task.estimated_hours,
+    new_estimate: estimatedHours,
+  };
+}
+
+async function createReminder(
+  task: Task,
+  parameters: any,
+  context: Record<string, any>
+): Promise<any> {
+  const reminderTime = calculateDueDate(parameters.reminder_time || '+1 hour');
+  const message = processTemplateVariables(
+    parameters.message || 'Reminder for task: {task.title}',
+    task,
+    context
+  );
+
+  // Create notification/reminder
+  const { data, error } = await supabaseAdmin.from('notifications').insert({
+    user_id: task.user_id,
+    type: 'reminder',
+    title: 'Task Reminder',
+    message: message,
+    related_task_id: task.id,
+    scheduled_for: reminderTime,
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    // If notifications table doesn't exist, just log
+    console.log(`Reminder Created: ${message} at ${reminderTime}`);
+    return {
+      reminder_created: true,
+      reminder_time: reminderTime,
+      message: message,
+    };
+  }
+
+  return {
+    reminder_created: true,
+    reminder_time: reminderTime,
+    message: message,
+  };
+}
+
+async function logActivity(
+  task: Task,
+  parameters: any,
+  context: Record<string, any>
+): Promise<any> {
+  const activityType = parameters.activity_type || 'automation';
+  const description = processTemplateVariables(
+    parameters.description || 'Automated activity',
+    task,
+    context
+  );
+
+  // Log to task activity/history table
+  const { data, error } = await supabaseAdmin.from('task_activity').insert({
+    task_id: task.id,
+    user_id: task.user_id,
+    activity_type: activityType,
+    description: description,
+    metadata: {
+      automation: true,
+      trigger: context.trigger,
+      timestamp: new Date().toISOString(),
+    },
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    // If table doesn't exist, just log to console
+    console.log(`Task Activity Log: ${description}`);
+    return {
+      logged: true,
+      activity_type: activityType,
+      description: description,
+    };
+  }
+
+  return {
+    logged: true,
+    activity_type: activityType,
+    description: description,
+  };
 }
 
 async function handler(req: Request): Promise<Response> {

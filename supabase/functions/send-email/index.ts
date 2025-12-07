@@ -367,12 +367,18 @@ async function handler(req: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         id: sg.id,
+        emailId: emailCommId,
+        messageId: sg.id,
         body_text: body.text ?? null,
         body_html: body.html ?? null,
-        sender_email: body.from,
+        sender_email: senderEmail,
         recipient_email: body.to,
         status: 'sent',
-      })
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
     );
   } catch (sendGridError) {
     console.error('SendGrid error:', sendGridError);

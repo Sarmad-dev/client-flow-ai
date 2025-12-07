@@ -148,7 +148,7 @@ export function useRecentTaskActivity(limit: number = 20) {
         .select(
           `
           *,
-          user:profile!user_id(id, email, raw_user_meta_data),
+          user:profiles!user_id(id, email, raw_user_meta_data),
           task:tasks(id, title)
         `
         )

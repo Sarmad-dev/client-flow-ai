@@ -130,7 +130,7 @@ export default function SetupScreen() {
         { onConflict: 'user_id' } as any
       );
 
-      router.push('/(onboarding)/complete');
+      router.push('/(onboarding)/organization');
     } catch (error) {
       console.error('Error updating onboarding:', error);
     } finally {

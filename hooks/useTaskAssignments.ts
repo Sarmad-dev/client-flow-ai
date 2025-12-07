@@ -229,29 +229,121 @@ export function useUnassignTask() {
   });
 }
 
-// Get available users for assignment (this would typically come from your user management system)
+// Get available users for assignment from user's organizations
 export function useAvailableUsers() {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ['available-users'],
+    queryKey: ['available-users', user?.id],
     queryFn: async () => {
-      // In a real application, this would fetch from a users table or API
-      // For now, we'll return an empty array as this depends on your user management setup
-      // You might want to implement this based on your specific requirements
+      if (!user?.id) return [];
 
-      // Example implementation if you have a profiles table:
-      const { data, error } = await supabase
+      // Get current user's profile
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('id, email, full_name, avatar_url')
-        .limit(50);
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
 
-      if (error) {
-        console.warn('Could not fetch available users:', error);
+      if (!profile) return [];
+
+      // Get all organizations where user is a member or owner
+      const { data: userOrgs, error: orgsError } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', profile.id)
+        .eq('status', 'active');
+
+      if (orgsError) {
+        console.warn('Could not fetch user organizations:', orgsError);
         return [];
       }
 
-      return data || [];
+      // Also get organizations where user is the owner
+      const { data: ownedOrgs, error: ownedError } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('owner_id', profile.id);
+
+      if (ownedError) {
+        console.warn('Could not fetch owned organizations:', ownedError);
+      }
+
+      // Combine organization IDs
+      const orgIds = [
+        ...(userOrgs?.map((o) => o.organization_id) || []),
+        ...(ownedOrgs?.map((o) => o.id) || []),
+      ];
+
+      if (orgIds.length === 0) return [];
+
+      // Get all members from these organizations
+      const { data: members, error: membersError } = await supabase
+        .from('organization_members')
+        .select(
+          `
+          user_id,
+          role,
+          organization_id,
+          user:profiles!user_id(id, email, full_name, avatar_url)
+        `
+        )
+        .in('organization_id', orgIds)
+        .eq('status', 'active');
+
+      if (membersError) {
+        console.warn('Could not fetch organization members:', membersError);
+        return [];
+      }
+
+      // Get organization owners
+      const { data: owners, error: ownersError } = await supabase
+        .from('organizations')
+        .select(
+          `
+          id,
+          owner:profiles!owner_id(id, email, full_name, avatar_url)
+        `
+        )
+        .in('id', orgIds);
+
+      if (ownersError) {
+        console.warn('Could not fetch organization owners:', ownersError);
+      }
+
+      // Combine and deduplicate users
+      const allUsers = new Map();
+
+      // Add members
+      members?.forEach((member: any) => {
+        if (member.user) {
+          allUsers.set(member.user.id, {
+            id: member.user.id,
+            email: member.user.email,
+            full_name: member.user.full_name || member.user.email,
+            avatar_url: member.user.avatar_url,
+            role: member.role,
+          });
+        }
+      });
+
+      // Add owners
+      owners?.forEach((org: any) => {
+        if (org.owner) {
+          allUsers.set(org.owner.id, {
+            id: org.owner.id,
+            email: org.owner.email,
+            full_name: org.owner.full_name || org.owner.email,
+            avatar_url: org.owner.avatar_url,
+            role: 'owner',
+          });
+        }
+      });
+
+      return Array.from(allUsers.values());
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!user?.id,
   });
 }
 

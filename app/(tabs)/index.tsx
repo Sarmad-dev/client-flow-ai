@@ -16,6 +16,7 @@ import { MeetingForm } from '@/components/MeetingForm';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClients } from '@/hooks/useClients';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
+import { router } from 'expo-router';
 
 export default function HomeScreen() {
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -96,6 +97,9 @@ export default function HomeScreen() {
                 styles.notificationButton,
                 { backgroundColor: colors.surface },
               ]}
+              onPress={() => {
+                router.push('/(tabs)/notifications');
+              }}
             >
               <Bell size={20} color={colors.text} strokeWidth={2} />
             </TouchableOpacity>

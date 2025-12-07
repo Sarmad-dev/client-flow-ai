@@ -12,6 +12,7 @@ import {
   NotepadTextDashed,
   Calendar,
   X,
+  Building2,
 } from 'lucide-react-native';
 import {
   View,
@@ -26,6 +27,8 @@ import { Animated, Easing } from 'react-native';
 import { User as UserIcon } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import NotificationBell from '@/components/NotificationBell';
+import OrganizationRequiredModal from '@/components/OrganizationRequiredModal';
 
 export default function TabLayout() {
   const { session, loading } = useAuth();
@@ -157,6 +160,7 @@ export default function TabLayout() {
 
   return (
     <>
+      <OrganizationRequiredModal />
       {showMore && (
         <View style={styles.overlay}>
           <Animated.View
@@ -190,7 +194,7 @@ export default function TabLayout() {
               },
             ]}
           >
-            {/* Header with Logo and Close Button */}
+            {/* Header with Logo, Notification Bell and Close Button */}
             <View style={styles.sidebarHeader}>
               <View style={styles.logoContainer}>
                 <Image
@@ -209,15 +213,23 @@ export default function TabLayout() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity
-                onPress={closeMore}
-                style={[
-                  styles.closeButton,
-                  { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' },
-                ]}
-              >
-                <X size={20} color={textColor} />
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <NotificationBell
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/notifications');
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={closeMore}
+                  style={[
+                    styles.closeButton,
+                    { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' },
+                  ]}
+                >
+                  <X size={20} color={textColor} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Divider */}
@@ -241,6 +253,15 @@ export default function TabLayout() {
                   onPress={() => {
                     closeMore();
                     router.push('/(tabs)/profile');
+                  }}
+                />
+                <AnimatedMenuItem
+                  icon={<Building2 size={20} color="#8B5CF6" />}
+                  label="Organizations"
+                  color="#8B5CF6"
+                  onPress={() => {
+                    closeMore();
+                    router.push('/(tabs)/organizations');
                   }}
                 />
                 <AnimatedMenuItem
@@ -476,6 +497,9 @@ export default function TabLayout() {
         <Tabs.Screen name="task-templates" options={{ href: null }} />
         <Tabs.Screen name="dependency-graph" options={{ href: null }} />
         <Tabs.Screen name="task-automation" options={{ href: null }} />
+        <Tabs.Screen name="organizations" options={{ href: null }} />
+        <Tabs.Screen name="organization-detail" options={{ href: null }} />
+        <Tabs.Screen name="notifications" options={{ href: null }} />
       </Tabs>
     </>
   );
@@ -532,6 +556,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   closeButton: {
     width: 36,

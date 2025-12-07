@@ -62,16 +62,10 @@ export function useAutomationTriggers() {
           event_type: 'task_completed',
           available_conditions: [
             'task.priority',
-            'task.tag',
             'task.client_id',
             'task.has_subtasks',
           ],
-          available_actions: [
-            'create_task',
-            'send_notification',
-            'update_related_tasks',
-            'create_follow_up',
-          ],
+          available_actions: ['create_task', 'send_notification'],
         },
         {
           id: 'task_overdue',
@@ -80,7 +74,6 @@ export function useAutomationTriggers() {
           event_type: 'task_overdue',
           available_conditions: [
             'task.priority',
-            'task.tag',
             'task.client_id',
             'days_overdue',
           ],
@@ -106,7 +99,6 @@ export function useAutomationTriggers() {
             'create_task',
             'send_notification',
             'update_dependencies',
-            'log_activity',
           ],
         },
         {
@@ -136,11 +128,7 @@ export function useAutomationTriggers() {
             'task.status',
             'task.client_id',
           ],
-          available_actions: [
-            'send_notification',
-            'update_priority',
-            'create_reminder',
-          ],
+          available_actions: ['send_notification', 'update_priority'],
         },
       ];
     },
@@ -605,15 +593,86 @@ function getNestedValue(path: string, data: any): any {
 }
 
 function evaluateCondition(actual: any, expected: any): boolean {
-  if (typeof expected === 'object' && expected !== null) {
+  if (
+    typeof expected === 'object' &&
+    expected !== null &&
+    !Array.isArray(expected)
+  ) {
     // Handle comparison operators
-    if (expected['>']) return actual > expected['>'];
-    if (expected['>=']) return actual >= expected['>='];
-    if (expected['<']) return actual < expected['<'];
-    if (expected['<=']) return actual <= expected['<='];
-    if (expected['!=']) return actual !== expected['!='];
-    if (expected['in']) return expected['in'].includes(actual);
-    if (expected['not_in']) return !expected['not_in'].includes(actual);
+    // Numeric comparisons - only use if both values are numbers
+    if (expected['>'] !== undefined) {
+      const expectedVal = Number(expected['>']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal > expectedVal
+      );
+    }
+    if (expected['>='] !== undefined) {
+      const expectedVal = Number(expected['>=']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal >= expectedVal
+      );
+    }
+    if (expected['<'] !== undefined) {
+      const expectedVal = Number(expected['<']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal < expectedVal
+      );
+    }
+    if (expected['<='] !== undefined) {
+      const expectedVal = Number(expected['<=']);
+      const actualVal = Number(actual);
+      return (
+        !isNaN(actualVal) && !isNaN(expectedVal) && actualVal <= expectedVal
+      );
+    }
+
+    // String/value comparisons
+    if (expected['!='] !== undefined) return actual !== expected['!='];
+    if (expected['='] !== undefined) return actual === expected['='];
+    if (expected['equals'] !== undefined) return actual === expected['equals'];
+
+    // Array membership
+    if (expected['in'] !== undefined) {
+      return Array.isArray(expected['in']) && expected['in'].includes(actual);
+    }
+    if (expected['not_in'] !== undefined) {
+      return (
+        Array.isArray(expected['not_in']) &&
+        !expected['not_in'].includes(actual)
+      );
+    }
+
+    // String operations
+    if (expected['contains'] !== undefined) {
+      return String(actual)
+        .toLowerCase()
+        .includes(String(expected['contains']).toLowerCase());
+    }
+    if (expected['starts_with'] !== undefined) {
+      return String(actual)
+        .toLowerCase()
+        .startsWith(String(expected['starts_with']).toLowerCase());
+    }
+    if (expected['ends_with'] !== undefined) {
+      return String(actual)
+        .toLowerCase()
+        .endsWith(String(expected['ends_with']).toLowerCase());
+    }
+
+    // Status/Priority change specific
+    if (expected['from'] !== undefined && expected['to'] !== undefined) {
+      // For status_changed trigger with from/to conditions
+      return true; // This should be handled at a higher level with context
+    }
+    if (expected['changed_to'] !== undefined) {
+      return actual === expected['changed_to'];
+    }
+    if (expected['changed_from'] !== undefined) {
+      return actual === expected['changed_from'];
+    }
   }
 
   // Handle array values (OR condition)

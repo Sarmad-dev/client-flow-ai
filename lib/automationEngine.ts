@@ -1,10 +1,6 @@
 import { supabase } from './supabase';
 import { executeAutomationRule } from './ai';
-import type {
-  AutomationRule,
-  TaskRecord,
-  TimeEntry,
-} from '@/types/task-management';
+import type { TaskRecord, TimeEntry } from '@/types/task-management';
 
 /**
  * Automation Engine

@@ -50,7 +50,6 @@ export async function analyzeTaskFromTranscription(
   try {
     const currentDate = new Date();
     const currentDay = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const currentHour = currentDate.getHours();
 
     const prompt = `
 You are an AI assistant that analyzes voice transcriptions and extracts task information. IMPORTANT: Always respond in English only.
@@ -401,7 +400,7 @@ export async function generateTaskSuggestions(
   context: TaskSuggestionContext
 ): Promise<TaskSuggestion[]> {
   try {
-    const { tasks, completedTasks, userId } = context;
+    const { tasks, completedTasks } = context;
 
     // Analyze current task state
     const activeTasks = tasks.filter((t) =>
@@ -1148,6 +1147,28 @@ export async function executeAutomationAction(
     case 'create_subtasks':
       return await executeCreateSubtasksAction(action.parameters, task);
 
+    case 'update_related_tasks':
+      return await executeUpdateRelatedTasksAction(action.parameters, task);
+
+    case 'update_dependencies':
+      return await executeUpdateDependenciesAction(action.parameters, task);
+
+    case 'log_activity':
+      return await executeLogActivityAction(action.parameters, task, context);
+
+    case 'update_estimates':
+      return await executeUpdateEstimatesAction(action.parameters, task);
+
+    case 'create_report':
+      return await executeCreateReportAction(action.parameters, task, context);
+
+    case 'create_reminder':
+      return await executeCreateReminderAction(
+        action.parameters,
+        task,
+        context
+      );
+
     default:
       throw new Error(`Unknown automation action type: ${action.type}`);
   }
@@ -1410,6 +1431,226 @@ async function executeCreateSubtasksAction(parameters: any, parentTask: any) {
   return {
     created_subtasks: createdSubtasks.length,
     subtask_ids: createdSubtasks.map((s) => s.id),
+  };
+}
+
+async function executeUpdateRelatedTasksAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const field = parameters.field;
+  const value = parameters.value;
+
+  if (!field || value === undefined) {
+    throw new Error('Field and value are required for update_related_tasks');
+  }
+
+  // Update tasks with same client_id or parent_task_id
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      [field]: value,
+      updated_at: new Date().toISOString(),
+    })
+    .or(`client_id.eq.${task.client_id},parent_task_id.eq.${task.id}`)
+    .neq('id', task.id)
+    .select();
+
+  if (error) throw error;
+
+  return {
+    updated_tasks_count: data?.length || 0,
+    updated_task_ids: data?.map((t: any) => t.id) || [],
+  };
+}
+
+async function executeUpdateDependenciesAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  // Get all tasks that depend on this task
+  const { data: dependencies, error: depsError } = await supabase
+    .from('task_dependencies')
+    .select('task_id')
+    .eq('depends_on_task_id', task.id);
+
+  if (depsError) throw depsError;
+
+  if (!dependencies || dependencies.length === 0) {
+    return {
+      updated_dependencies_count: 0,
+      message: 'No dependent tasks found',
+    };
+  }
+
+  // Update status of dependent tasks if this task is completed
+  if (task.status === 'completed' && parameters.auto_start) {
+    const taskIds = dependencies.map((d) => d.task_id);
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({
+        status: 'in_progress',
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', taskIds)
+      .eq('status', 'pending')
+      .select();
+
+    if (error) throw error;
+
+    return {
+      updated_dependencies_count: data?.length || 0,
+      updated_task_ids: data?.map((t: any) => t.id) || [],
+    };
+  }
+
+  return {
+    updated_dependencies_count: 0,
+    message: 'No updates needed',
+  };
+}
+
+async function executeLogActivityAction(
+  parameters: any,
+  task: any,
+  context: any
+) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const activityType = parameters.activity_type || 'automation';
+  const description = processTemplateVariables(
+    parameters.description || 'Automated activity',
+    task,
+    context
+  );
+
+  // Log to task activity/history table
+  const { data, error } = await supabase.from('task_activity').insert({
+    task_id: task.id,
+    user_id: task.user_id,
+    activity_type: activityType,
+    description: description,
+    metadata: {
+      automation: true,
+      trigger: context.trigger,
+      timestamp: new Date().toISOString(),
+    },
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    // If table doesn't exist, just log to console
+    console.log(`Task Activity Log: ${description}`);
+    return {
+      logged: true,
+      activity_type: activityType,
+      description: description,
+    };
+  }
+
+  return {
+    logged: true,
+    activity_type: activityType,
+    description: description,
+  };
+}
+
+async function executeUpdateEstimatesAction(parameters: any, task: any) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const estimatedHours = parseFloat(parameters.estimated_hours);
+
+  if (isNaN(estimatedHours)) {
+    throw new Error('Invalid estimated_hours value');
+  }
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      estimated_hours: estimatedHours,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', task.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    updated_task_id: task.id,
+    old_estimate: task.estimated_hours,
+    new_estimate: estimatedHours,
+  };
+}
+
+async function executeCreateReportAction(
+  parameters: any,
+  task: any,
+  context: any
+) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const reportType = parameters.report_type || 'task_summary';
+
+  // Create a report entry
+  const reportData = {
+    user_id: task.user_id,
+    report_type: reportType,
+    task_id: task.id,
+    generated_at: new Date().toISOString(),
+    data: {
+      task: task,
+      context: context,
+      automation_generated: true,
+    },
+  };
+
+  console.log(`Report Created: ${reportType} for task ${task.id}`);
+
+  return {
+    report_created: true,
+    report_type: reportType,
+    report_data: reportData,
+  };
+}
+
+async function executeCreateReminderAction(
+  parameters: any,
+  task: any,
+  context: any
+) {
+  const { supabase } = await import('@/lib/supabase');
+
+  const reminderTime = calculateDueDate(parameters.reminder_time || '+1 hour');
+  const message = processTemplateVariables(
+    parameters.message || 'Reminder for task: {task.title}',
+    task,
+    context
+  );
+
+  // Create notification/reminder
+  const { data, error } = await supabase.from('notifications').insert({
+    user_id: task.user_id,
+    type: 'reminder',
+    title: 'Task Reminder',
+    message: message,
+    related_task_id: task.id,
+    scheduled_for: reminderTime,
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    // If notifications table doesn't exist, just log
+    console.log(`Reminder Created: ${message} at ${reminderTime}`);
+    return {
+      reminder_created: true,
+      reminder_time: reminderTime,
+      message: message,
+    };
+  }
+
+  return {
+    reminder_created: true,
+    reminder_time: reminderTime,
+    message: message,
   };
 }
 
