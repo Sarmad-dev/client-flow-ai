@@ -433,8 +433,6 @@ async function sendNotification(
   parameters: any,
   context: Record<string, any>
 ): Promise<any> {
-  // In a real implementation, this would send actual notifications
-  // For now, we'll just log it
   const message = processTemplateVariables(
     parameters.message || 'Task notification',
     task,
@@ -443,11 +441,54 @@ async function sendNotification(
 
   console.log(`Automation Notification: ${message}`);
 
-  return {
-    notification_sent: true,
-    message: message,
-    type: parameters.type || 'general',
-  };
+  try {
+    // Determine recipients
+    let recipientIds: string[] = [];
+
+    if (parameters.recipient === 'assignees') {
+      // Get all assigned users
+      const { data: assignments } = await supabaseAdmin
+        .from('task_assignments')
+        .select('user_id')
+        .eq('task_id', task.id);
+
+      recipientIds = assignments?.map((a: any) => a.user_id) || [];
+    } else if (parameters.recipient === 'owner') {
+      recipientIds = [task.user_id];
+    } else if (parameters.recipient_id) {
+      recipientIds = [parameters.recipient_id];
+    } else {
+      // Default to task owner
+      recipientIds = [task.user_id];
+    }
+
+    // Send notification to each recipient
+    for (const userId of recipientIds) {
+      await supabaseAdmin.from('notifications').insert({
+        user_id: userId,
+        type: 'task_assigned', // Generic type for automation notifications
+        title: parameters.title || 'Task Notification',
+        message,
+        data: { task_id: task.id },
+        action_url: `/tasks/${task.id}`,
+        read: false,
+      });
+    }
+
+    return {
+      notification_sent: true,
+      message: message,
+      type: parameters.type || 'general',
+      recipients_count: recipientIds.length,
+    };
+  } catch (error) {
+    console.error('Error sending automation notification:', error);
+    return {
+      notification_sent: false,
+      message: message,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 }
 
 async function createTask(

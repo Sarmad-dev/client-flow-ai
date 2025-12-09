@@ -403,8 +403,44 @@ export function useCreateMeeting() {
       if (error) throw error;
       return data as unknown as MeetingRecord;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: meetingKeys.all as any });
+
+      // Send notifications to participants
+      const { notifyMeetingScheduled } = await import('@/lib/notifications');
+
+      // Get organizer profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('user_id', userId)
+        .single();
+
+      const organizerName = profile?.full_name || profile?.email || 'Someone';
+
+      // Get participants
+      const { data: participants } = await supabase
+        .from('meeting_participants')
+        .select('participant_id, participant_type')
+        .eq('meeting_id', data.id);
+
+      if (participants) {
+        for (const participant of participants) {
+          // Only notify if participant is a user (not external)
+          if (
+            participant.participant_type === 'user' &&
+            participant.participant_id !== profile?.id
+          ) {
+            await notifyMeetingScheduled({
+              userId: participant.participant_id,
+              meetingId: data.id,
+              meetingTitle: data.title,
+              startTime: data.start_time,
+              organizer: organizerName,
+            });
+          }
+        }
+      }
     },
   });
 }
@@ -498,11 +534,58 @@ export function useUpdateMeetingStatus() {
       if (error) throw error;
       return data as unknown as MeetingRecord;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: meetingKeys.all as any });
       queryClient.invalidateQueries({
         queryKey: meetingKeys.detail(data.id) as any,
       });
+
+      // Send cancellation notifications if meeting was cancelled
+      if (variables.newStatus === 'cancelled') {
+        const { notifyMeetingCancelled } = await import('@/lib/notifications');
+
+        // Get meeting details
+        const { data: meeting } = await supabase
+          .from('meetings')
+          .select('title, user_id')
+          .eq('id', data.id)
+          .single();
+
+        if (!meeting) return;
+
+        // Get organizer profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('user_id', meeting.user_id)
+          .single();
+
+        const cancelledByName =
+          profile?.full_name || profile?.email || 'Someone';
+
+        // Get participants
+        const { data: participants } = await supabase
+          .from('meeting_participants')
+          .select('participant_id, participant_type')
+          .eq('meeting_id', data.id);
+
+        if (participants) {
+          for (const participant of participants) {
+            // Only notify if participant is a user (not external)
+            if (
+              participant.participant_type === 'user' &&
+              participant.participant_id !== profile?.id
+            ) {
+              await notifyMeetingCancelled({
+                userId: participant.participant_id,
+                meetingId: data.id,
+                meetingTitle: meeting.title,
+                cancelledBy: cancelledByName,
+              });
+            }
+          }
+        }
+      }
     },
   });
 }

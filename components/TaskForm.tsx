@@ -139,20 +139,41 @@ export function TaskForm({
             ]
           );
         });
-        if (!proceed) return;
+        if (!proceed) return null;
       }
 
       const start = new Date(task.due_date || task.dueDate || new Date());
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      await gc.createCalendarEvent({
-        summary: task.title,
-        description: task.description,
-        start: { dateTime: start.toISOString(), timeZone: 'UTC' },
-        end: { dateTime: end.toISOString(), timeZone: 'UTC' },
+
+      const eventId = await gc.createCalendarEvent({
+        summary: `Task: ${task.title}`,
+        description: task.description || '',
+        start: {
+          dateTime: start.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        end: {
+          dateTime: end.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 30 },
+            { method: 'email', minutes: 1440 }, // 1 day before
+          ],
+        },
       });
+
+      if (eventId) {
+        Alert.alert('Success', 'Task added to Google Calendar');
+        return eventId;
+      }
     } catch (error) {
       console.error('Error adding to calendar:', error);
+      Alert.alert('Error', 'Failed to add task to Google Calendar');
     }
+    return null;
   };
 
   const resetForm = () => {

@@ -324,6 +324,10 @@ export function useSearchTaskComments(query: string, taskIds?: string[]) {
 // Helper function to send comment notifications
 async function sendCommentNotification(comment: TaskComment) {
   try {
+    const { notifyCommentAdded, notifyMention } = await import(
+      '@/lib/notifications'
+    );
+
     // Get task details and all assigned users
     const { data: taskData, error } = await supabase
       .from('tasks')
@@ -355,25 +359,59 @@ async function sendCommentNotification(comment: TaskComment) {
       }
     });
 
-    // Send notifications to all relevant users
-    for (const userId of notifyUserIds) {
-      // This is a placeholder for notification logic
-      console.log(
-        `Comment notification: New comment on task "${taskData.title}" by ${comment.user?.email}`
-      );
+    const commenterName =
+      comment.user?.full_name || comment.user?.email || 'Someone';
+    const commentPreview = comment.content.substring(0, 100);
 
-      // Example: Create in-app notification
-      // await supabase.from('notifications').insert({
-      //   user_id: userId,
-      //   type: 'task_comment',
-      //   title: 'New Task Comment',
-      //   message: `${comment.user?.full_name || comment.user?.email} commented on "${taskData.title}"`,
-      //   data: {
-      //     task_id: comment.task_id,
-      //     comment_id: comment.id,
-      //     comment_preview: comment.content.substring(0, 100)
-      //   },
-      // });
+    // Check for mentions in the comment (@username pattern)
+    const mentionPattern = /@(\w+)/g;
+    const mentions = comment.content.match(mentionPattern);
+    const mentionedUserIds = new Set<string>();
+
+    if (mentions) {
+      // Get all profiles to match mentioned usernames
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, email, full_name');
+
+      profiles?.forEach((profile) => {
+        const username =
+          profile.full_name?.toLowerCase() || profile.email.split('@')[0];
+        mentions.forEach((mention) => {
+          const mentionName = mention.substring(1).toLowerCase();
+          if (
+            username.includes(mentionName) &&
+            profile.id !== comment.user_id
+          ) {
+            mentionedUserIds.add(profile.id);
+          }
+        });
+      });
+    }
+
+    // Send mention notifications first (higher priority)
+    for (const userId of mentionedUserIds) {
+      await notifyMention({
+        userId,
+        taskId: comment.task_id,
+        taskTitle: taskData.title,
+        mentionedByName: commenterName,
+        commentPreview,
+      });
+    }
+
+    // Send regular comment notifications to others
+    for (const userId of notifyUserIds) {
+      // Skip if already notified via mention
+      if (mentionedUserIds.has(userId)) continue;
+
+      await notifyCommentAdded({
+        userId,
+        taskId: comment.task_id,
+        taskTitle: taskData.title,
+        commenterName,
+        commentPreview,
+      });
     }
   } catch (error) {
     console.error('Error sending comment notification:', error);

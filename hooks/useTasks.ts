@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import type {
   SubtaskRecord,
   TaskDependency,
@@ -83,6 +84,8 @@ export function useCreateTask() {
   const { user } = useAuth();
   const userId = user?.id;
   const queryClient = useQueryClient();
+  const { incrementUsage } = useSubscription();
+
   return useMutation({
     mutationFn: async (
       payload: Partial<TaskRecord> & {
@@ -118,8 +121,9 @@ export function useCreateTask() {
       if (error) throw error;
       return data as unknown as TaskRecord;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all as any });
+      await incrementUsage('tasks');
     },
   });
 }
@@ -160,6 +164,36 @@ export function useToggleTaskStatus() {
 
       if (payload.to === 'completed') {
         await triggerTaskCompleted(data as TaskRecord);
+
+        // Notify assigned users about task completion
+        const { notifyTaskCompleted } = await import('@/lib/notifications');
+        const { data: assignments } = await supabase
+          .from('task_assignments')
+          .select('user_id')
+          .eq('task_id', payload.id);
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('user_id', userId)
+          .single();
+
+        const completedByName =
+          profile?.full_name || profile?.email || 'Someone';
+
+        // Notify all assigned users (except the one who completed it)
+        if (assignments) {
+          for (const assignment of assignments) {
+            if (assignment.user_id !== profile?.id) {
+              await notifyTaskCompleted({
+                userId: assignment.user_id,
+                taskId: payload.id,
+                taskTitle: (data as TaskRecord).title,
+                completedByName,
+              });
+            }
+          }
+        }
       }
 
       return data;

@@ -11,9 +11,10 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { CalendarList } from 'react-native-calendars';
 import type { DateData } from 'react-native-calendars';
-import { useMeetings, type EnrichedMeeting } from '@/hooks/useMeetings';
+import { useMeetings } from '@/hooks/useMeetings';
 import { useTasks, type TaskRecord } from '@/hooks/useTasks';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import type { EnrichedMeeting } from '@/types/meeting-management';
 import { MeetingDetailModal } from '@/components/MeetingDetailModal';
 import { TaskEditModal } from '@/components/tasks/TaskEditModal';
 
@@ -25,6 +26,7 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
+  const [showConnectionInfo, setShowConnectionInfo] = useState(false);
 
   const tasksByDate = useMemo(() => {
     const map: Record<string, TaskRecord[]> = {};
@@ -106,7 +108,22 @@ export default function CalendarScreen() {
     >
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: colors.text }]}>Calendar</Text>
-        {!google.isConnected && (
+        {google.isConnected ? (
+          <TouchableOpacity
+            onPress={() => setShowConnectionInfo(true)}
+            style={[
+              styles.connectBtn,
+              {
+                borderColor: colors.success,
+                backgroundColor: colors.success + '20',
+              },
+            ]}
+          >
+            <Text style={{ color: colors.success, fontWeight: '700' }}>
+              ✓ Connected
+            </Text>
+          </TouchableOpacity>
+        ) : (
           <TouchableOpacity
             onPress={google.connect}
             style={[styles.connectBtn, { borderColor: colors.border }]}
@@ -122,8 +139,8 @@ export default function CalendarScreen() {
           setSelectedDate(day.dateString);
           setShowDateDialog(true);
         }}
-        pastScrollRange={3}
-        futureScrollRange={6}
+        pastScrollRange={24}
+        futureScrollRange={24}
         markedDates={markedDates}
         dayComponent={({ date }) => {
           if (!date) return null;
@@ -288,6 +305,102 @@ export default function CalendarScreen() {
         task={selectedTask}
         onUpdated={() => {}}
       />
+
+      {/* Google Calendar Connection Info */}
+      <Modal visible={showConnectionInfo} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Google Calendar Connected
+            </Text>
+
+            <View style={{ paddingVertical: 16, gap: 12 }}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: colors.primary + '20',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 18 }}>
+                    {google.user?.name?.charAt(0) || '?'}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[{ color: colors.text, fontWeight: '600' }]}>
+                    {google.user?.name || 'Unknown User'}
+                  </Text>
+                  <Text style={[{ color: colors.textSecondary, fontSize: 14 }]}>
+                    {google.user?.email || 'No email'}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={{
+                  padding: 12,
+                  backgroundColor: colors.background,
+                  borderRadius: 8,
+                  gap: 8,
+                }}
+              >
+                <Text style={[{ color: colors.text, fontSize: 14 }]}>
+                  ✓ Tasks and meetings will sync to Google Calendar
+                </Text>
+                <Text style={[{ color: colors.text, fontSize: 14 }]}>
+                  ✓ Reminders will be sent via Google
+                </Text>
+                <Text style={[{ color: colors.text, fontSize: 14 }]}>
+                  ✓ Calendar shows events from multiple years
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <TouchableOpacity
+                onPress={async () => {
+                  await google.disconnect();
+                  setShowConnectionInfo(false);
+                }}
+                style={[
+                  styles.closeBtn,
+                  {
+                    flex: 1,
+                    borderColor: colors.error,
+                    backgroundColor: colors.error + '10',
+                  },
+                ]}
+              >
+                <Text style={{ color: colors.error, fontWeight: '600' }}>
+                  Disconnect
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowConnectionInfo(false)}
+                style={[
+                  styles.closeBtn,
+                  { flex: 1, borderColor: colors.border },
+                ]}
+              >
+                <Text style={{ color: colors.text, fontWeight: '600' }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

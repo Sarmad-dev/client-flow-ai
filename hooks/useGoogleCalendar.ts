@@ -55,6 +55,12 @@ type GoogleAuthHook = {
   disconnect: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
   createCalendarEvent: (event: CalendarEvent) => Promise<string | null>;
+  updateCalendarEvent: (
+    eventId: string,
+    event: Partial<CalendarEvent>
+  ) => Promise<boolean>;
+  deleteCalendarEvent: (eventId: string) => Promise<boolean>;
+  getCalendarEvents: (timeMin: string, timeMax: string) => Promise<any[]>;
   createTask: (task: Task) => Promise<string | null>;
   refreshToken: () => Promise<boolean>;
 };
@@ -65,16 +71,12 @@ export function useGoogleCalendar(): GoogleAuthHook {
   const [error, setError] = useState<Error | null>(null);
   const [token, setToken] = useState<AuthSession.TokenResponse | null>(null);
 
-  // Load stored data on mount
-  useEffect(() => {
-    loadStoredData();
-  }, []);
-
   const loadStoredData = useCallback(async () => {
     try {
-      const [storedToken, storedUser] = await Promise.all([
+      const [storedToken, storedUser, storedRefreshToken] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.TOKEN),
         AsyncStorage.getItem(STORAGE_KEYS.USER),
+        AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
       ]);
 
       if (storedToken && storedUser) {
@@ -85,17 +87,22 @@ export function useGoogleCalendar(): GoogleAuthHook {
         if (tokenData.expiresAt && new Date(tokenData.expiresAt) > new Date()) {
           setToken(tokenData as AuthSession.TokenResponse);
           setUser(userData);
-        } else {
+        } else if (storedRefreshToken) {
           // Token expired, try to refresh
           setToken(tokenData as AuthSession.TokenResponse);
           setUser(userData);
-          await refreshToken();
+          // Refresh will be handled by getAccessToken when needed
         }
       }
     } catch (err) {
       console.error('Error loading stored data:', err);
     }
   }, []);
+
+  // Load stored data on mount
+  useEffect(() => {
+    loadStoredData();
+  }, [loadStoredData]);
 
   const storeData = async (
     tokenData: AuthSession.TokenResponse,
@@ -261,25 +268,6 @@ export function useGoogleCalendar(): GoogleAuthHook {
     }
   }, [token]);
 
-  const getAccessToken = useCallback(async (): Promise<string | null> => {
-    try {
-      if (!token?.accessToken) return null;
-
-      // Check if token is expired and refresh if needed
-      const tokenData = token as any;
-      if (tokenData.expiresAt && new Date(tokenData.expiresAt) <= new Date()) {
-        const refreshed = await refreshToken();
-        if (!refreshed) return null;
-        return token.accessToken;
-      }
-
-      return token.accessToken;
-    } catch (err) {
-      console.error('Error getting access token:', err);
-      return null;
-    }
-  }, [token]);
-
   const refreshToken = useCallback(async (): Promise<boolean> => {
     try {
       const refreshTokenValue = await AsyncStorage.getItem(
@@ -296,17 +284,19 @@ export function useGoogleCalendar(): GoogleAuthHook {
           grant_type: 'refresh_token',
           refresh_token: refreshTokenValue,
           client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID!,
-        }),
+        }).toString(),
       });
 
       if (response.ok) {
         const newToken = await response.json();
         const updatedToken = {
-          ...token,
-          ...newToken,
+          accessToken: newToken.access_token,
+          refreshToken: refreshTokenValue, // Keep the same refresh token
+          expiresIn: newToken.expires_in,
           expiresAt: new Date(
             Date.now() + newToken.expires_in * 1000
           ).toISOString(),
+          tokenType: newToken.token_type,
         } as any;
 
         setToken(updatedToken);
@@ -321,7 +311,32 @@ export function useGoogleCalendar(): GoogleAuthHook {
       console.error('Error refreshing token:', err);
       return false;
     }
-  }, [token]);
+  }, []);
+
+  const getAccessToken = useCallback(async (): Promise<string | null> => {
+    try {
+      if (!token?.accessToken) return null;
+
+      // Check if token is expired and refresh if needed
+      const tokenData = token as any;
+      if (tokenData.expiresAt && new Date(tokenData.expiresAt) <= new Date()) {
+        const refreshed = await refreshToken();
+        if (!refreshed) return null;
+        // Get the updated token from state after refresh
+        const updatedToken = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (updatedToken) {
+          const parsed = JSON.parse(updatedToken);
+          return parsed.accessToken;
+        }
+        return null;
+      }
+
+      return token.accessToken;
+    } catch (err) {
+      console.error('Error getting access token:', err);
+      return null;
+    }
+  }, [token, refreshToken]);
 
   const createCalendarEvent = useCallback(
     async (event: CalendarEvent): Promise<string | null> => {
@@ -428,6 +443,101 @@ export function useGoogleCalendar(): GoogleAuthHook {
     [getAccessToken]
   );
 
+  const updateCalendarEvent = useCallback(
+    async (
+      eventId: string,
+      event: Partial<CalendarEvent>
+    ): Promise<boolean> => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error('No valid access token available');
+        }
+
+        const response = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(event),
+          }
+        );
+
+        return response.ok;
+      } catch (err) {
+        console.error('Error updating calendar event:', err);
+        setError(err as Error);
+        return false;
+      }
+    },
+    [getAccessToken]
+  );
+
+  const deleteCalendarEvent = useCallback(
+    async (eventId: string): Promise<boolean> => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error('No valid access token available');
+        }
+
+        const response = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        return response.ok;
+      } catch (err) {
+        console.error('Error deleting calendar event:', err);
+        setError(err as Error);
+        return false;
+      }
+    },
+    [getAccessToken]
+  );
+
+  const getCalendarEvents = useCallback(
+    async (timeMin: string, timeMax: string): Promise<any[]> => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error('No valid access token available');
+        }
+
+        const response = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(
+            timeMin
+          )}&timeMax=${encodeURIComponent(
+            timeMax
+          )}&singleEvents=true&orderBy=startTime`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          return data.items || [];
+        }
+        return [];
+      } catch (err) {
+        console.error('Error fetching calendar events:', err);
+        return [];
+      }
+    },
+    [getAccessToken]
+  );
+
   return {
     user,
     isConnected: !!user && !!token,
@@ -437,6 +547,9 @@ export function useGoogleCalendar(): GoogleAuthHook {
     disconnect,
     getAccessToken,
     createCalendarEvent,
+    updateCalendarEvent,
+    deleteCalendarEvent,
+    getCalendarEvents,
     createTask,
     refreshToken,
   };

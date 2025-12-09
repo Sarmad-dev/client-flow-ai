@@ -11,51 +11,65 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useSubscription } from '../../contexts/SubscriptionContext';
-import { SubscriptionModal } from '../../components/SubscriptionModal';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme } from '@/hooks/useTheme';
+import {
+  SUBSCRIPTION_TIERS,
+  getYearlySavingsPercentage,
+} from '@/lib/subscriptionConfig';
+import { BillingPeriod, SubscriptionPlan } from '@/types/subscription';
+import { formatSubscriptionStatus } from '@/lib/subscriptionUtils';
 
 const { width } = Dimensions.get('window');
 
 export default function SubscriptionScreen() {
   const {
     userSubscription,
-    currentOffering,
-    purchaseSubscription,
+    offerings,
+    purchasePackage,
     restorePurchases,
     isLoading,
+    analytics,
+    isInTrial,
+    getTrialDaysLeft,
   } = useSubscription();
-  const { colors } = useTheme();
-  const [showModal, setShowModal] = useState(false);
+
+  const { colors, isDark } = useTheme();
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [purchasing, setPurchasing] = useState(false);
 
-  const handlePurchase = async () => {
-    if (!currentOffering?.availablePackages?.[0]) {
+  const handlePurchase = async (plan: SubscriptionPlan) => {
+    if (!offerings?.current) {
       Alert.alert('Error', 'No subscription packages available');
+      return;
+    }
+
+    // Find the appropriate package
+    const productId = `nexasuit_${plan}_${
+      billingPeriod === 'yearly' ? 'yearly' : 'monthly'
+    }`;
+    const pkg = offerings.current.availablePackages.find(
+      (p) => p.product.identifier === productId
+    );
+
+    if (!pkg) {
+      Alert.alert('Error', 'Package not found');
       return;
     }
 
     setPurchasing(true);
     try {
-      const success = await purchaseSubscription(
-        currentOffering.availablePackages[0].identifier
-      );
+      const success = await purchasePackage(pkg);
       if (success) {
         Alert.alert(
-          'Success',
-          'Welcome to Pro! You now have unlimited access to all features.'
+          'Success!',
+          `Welcome to ${plan.toUpperCase()}! You now have access to all premium features.`
         );
       } else {
-        Alert.alert(
-          'Error',
-          'Failed to purchase subscription. Please try again.'
-        );
+        Alert.alert('Error', 'Failed to complete purchase. Please try again.');
       }
     } catch (error) {
-      Alert.alert(
-        'Error',
-        'An error occurred during purchase. Please try again.'
-      );
+      Alert.alert('Error', 'An error occurred during purchase.');
     } finally {
       setPurchasing(false);
     }
@@ -63,212 +77,325 @@ export default function SubscriptionScreen() {
 
   const handleRestore = async () => {
     try {
-      await restorePurchases();
-      Alert.alert('Success', 'Purchases restored successfully!');
+      const success = await restorePurchases();
+      if (success) {
+        Alert.alert('Success', 'Purchases restored successfully!');
+      } else {
+        Alert.alert('Info', 'No purchases found to restore.');
+      }
     } catch (error) {
-      Alert.alert('Error', 'No purchases found to restore.');
+      Alert.alert('Error', 'Failed to restore purchases.');
     }
   };
 
-  const getCurrentPlanFeatures = () => {
-    if (userSubscription.plan === 'pro') {
-      return [
-        '✓ Unlimited Leads & Clients',
-        '✓ Unlimited Tasks',
-        '✓ Meeting Management',
-        '✓ Email Analytics',
-        '✓ Unlimited Emails',
-      ];
-    } else {
-      return [
-        '✓ 3 Leads',
-        '✓ 3 Clients',
-        '✓ 3 Tasks per Client',
-        '✓ 5 Emails per Client/Lead',
-        '✗ Meeting Management',
-        '✗ Email Analytics',
-      ];
-    }
-  };
+  const renderPlanCard = (tier: (typeof SUBSCRIPTION_TIERS)[0]) => {
+    const isCurrentPlan = userSubscription.plan === tier.plan;
+    const price =
+      billingPeriod === 'yearly' ? tier.yearlyPrice : tier.monthlyPrice;
+    const savings =
+      billingPeriod === 'yearly' ? getYearlySavingsPercentage(tier) : 0;
 
-  const getProFeatures = () => [
-    'Unlimited Leads & Clients',
-    'Unlimited Tasks',
-    'Meeting Management',
-    'Email Analytics',
-    'Unlimited Emails',
-    'Priority Support',
-  ];
-
-  return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+    return (
+      <View
+        key={tier.plan}
+        style={[
+          styles.planCard,
+          { backgroundColor: colors.surface },
+          isCurrentPlan && styles.currentPlanCard,
+          tier.popular && styles.popularPlanCard,
+        ]}
       >
-        <View style={styles.header}>
+        {tier.popular && (
           <View
-            style={[
-              styles.planBadge,
-              { backgroundColor: 'rgba(255,255,255,0.2)' },
-            ]}
+            style={[styles.popularBadge, { backgroundColor: colors.primary }]}
           >
-            <Text style={styles.planText}>
-              {userSubscription.plan === 'pro' ? 'PRO' : 'FREE'}
-            </Text>
+            <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
           </View>
-          <Text style={styles.headerTitle}>
-            {userSubscription.plan === 'pro'
-              ? 'Pro Plan Active'
-              : 'Current Plan'}
+        )}
+
+        {isCurrentPlan && (
+          <View
+            style={[styles.currentBadge, { backgroundColor: colors.success }]}
+          >
+            <Ionicons name="checkmark-circle" size={16} color="white" />
+            <Text style={styles.currentBadgeText}>Current Plan</Text>
+          </View>
+        )}
+
+        <Text style={[styles.planName, { color: colors.text }]}>
+          {tier.displayName}
+        </Text>
+        <Text style={[styles.planDescription, { color: colors.textSecondary }]}>
+          {tier.description}
+        </Text>
+
+        <View style={styles.priceContainer}>
+          <Text style={[styles.price, { color: colors.text }]}>
+            ${price.toFixed(2)}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            {userSubscription.plan === 'pro'
-              ? 'You have unlimited access to all features'
-              : 'Upgrade to unlock all features'}
+          <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>
+            /{billingPeriod === 'yearly' ? 'year' : 'month'}
           </Text>
         </View>
-      </LinearGradient>
 
-      {/* Current Plan Features */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Your Current Features
-        </Text>
-        <View
-          style={[styles.featuresList, { backgroundColor: colors.surface }]}
-        >
-          {getCurrentPlanFeatures().map((feature, index) => (
-            <View key={index} style={styles.featureItem}>
+        {savings > 0 && (
+          <View
+            style={[
+              styles.savingsBadge,
+              { backgroundColor: colors.success + '20' },
+            ]}
+          >
+            <Text style={[styles.savingsText, { color: colors.success }]}>
+              Save {savings}%
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.featuresContainer}>
+          {tier.features.map((feature, index) => (
+            <View key={index} style={styles.featureRow}>
+              <Ionicons name="checkmark" size={18} color={colors.primary} />
               <Text style={[styles.featureText, { color: colors.text }]}>
                 {feature}
               </Text>
             </View>
           ))}
         </View>
-      </View>
 
-      {/* Usage Stats */}
-      {userSubscription.plan === 'free' && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Your Usage
-          </Text>
-          <View
-            style={[styles.usageContainer, { backgroundColor: colors.surface }]}
+        {!isCurrentPlan && tier.plan !== 'free' && (
+          <TouchableOpacity
+            style={[
+              styles.selectButton,
+              {
+                backgroundColor: tier.popular ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={() => handlePurchase(tier.plan)}
+            disabled={purchasing || isLoading}
           >
-            <View style={styles.usageItem}>
-              <Text style={[styles.usageNumber, { color: colors.primary }]}>
-                {userSubscription.currentUsage.leads}/3
-              </Text>
+            {purchasing ? (
+              <ActivityIndicator color="white" />
+            ) : (
               <Text
-                style={[styles.usageLabel, { color: colors.textSecondary }]}
+                style={[
+                  styles.selectButtonText,
+                  { color: tier.popular ? 'white' : colors.text },
+                ]}
               >
-                Leads
+                {tier.trialDays
+                  ? `Start ${tier.trialDays}-Day Trial`
+                  : 'Select Plan'}
               </Text>
-            </View>
-            <View style={styles.usageItem}>
-              <Text style={[styles.usageNumber, { color: colors.primary }]}>
-                {userSubscription.currentUsage.clients}/3
-              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {isCurrentPlan && (
+          <View
+            style={[
+              styles.currentPlanButton,
+              { backgroundColor: colors.border },
+            ]}
+          >
+            <Text
+              style={[
+                styles.currentPlanButtonText,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Active
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderUsageStats = () => {
+    if (!analytics) return null;
+
+    return (
+      <View style={[styles.usageCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Your Usage
+        </Text>
+
+        {Object.entries(analytics.usagePercentage).map(([key, percentage]) => (
+          <View key={key} style={styles.usageRow}>
+            <Text style={[styles.usageLabel, { color: colors.text }]}>
+              {key.charAt(0).toUpperCase() + key.slice(1)}
+            </Text>
+            <View style={styles.usageBarContainer}>
+              <View
+                style={[styles.usageBar, { backgroundColor: colors.border }]}
+              >
+                <View
+                  style={[
+                    styles.usageBarFill,
+                    {
+                      width: `${percentage}%`,
+                      backgroundColor:
+                        percentage >= 90
+                          ? colors.error
+                          : percentage >= 70
+                          ? colors.warning
+                          : colors.success,
+                    },
+                  ]}
+                />
+              </View>
               <Text
-                style={[styles.usageLabel, { color: colors.textSecondary }]}
+                style={[
+                  styles.usagePercentage,
+                  { color: colors.textSecondary },
+                ]}
               >
-                Clients
-              </Text>
-            </View>
-            <View style={styles.usageItem}>
-              <Text style={[styles.usageNumber, { color: colors.primary }]}>
-                {userSubscription.currentUsage.emailsSent}/5
-              </Text>
-              <Text
-                style={[styles.usageLabel, { color: colors.textSecondary }]}
-              >
-                Emails
+                {percentage}%
               </Text>
             </View>
           </View>
-        </View>
-      )}
+        ))}
 
-      {/* Pro Plan Card */}
-      {userSubscription.plan === 'free' && (
-        <View style={styles.section}>
-          <LinearGradient
-            colors={['#f093fb', '#f5576c']}
-            style={styles.proCard}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+        {analytics.recommendedUpgrade && (
+          <View
+            style={[
+              styles.upgradeRecommendation,
+              { backgroundColor: colors.warning + '20' },
+            ]}
           >
-            <View style={styles.proCardContent}>
-              <View style={styles.proIcon}>
-                <Ionicons name="diamond" size={30} color="white" />
-              </View>
-              <Text style={styles.proTitle}>Upgrade to Pro</Text>
-              <Text style={styles.proPrice}>
-                {currentOffering?.availablePackages?.[0]?.product
-                  ?.priceString || '$5.00'}
-                /month
-              </Text>
-              <Text style={styles.proSubtitle}>
-                Unlock unlimited access to all features
-              </Text>
+            <Ionicons name="warning" size={20} color={colors.warning} />
+            <Text
+              style={[styles.upgradeRecommendationText, { color: colors.text }]}
+            >
+              You're approaching your limits. Consider upgrading to{' '}
+              {analytics.recommendedUpgrade.toUpperCase()}.
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
-              <View style={styles.proFeatures}>
-                {getProFeatures().map((feature, index) => (
-                  <View key={index} style={styles.proFeatureItem}>
-                    <Ionicons name="checkmark-circle" size={20} color="white" />
-                    <Text style={styles.proFeatureText}>{feature}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.upgradeButton,
-                  { backgroundColor: colors.surface },
-                ]}
-                onPress={handlePurchase}
-                disabled={purchasing || isLoading}
-              >
-                {purchasing ? (
-                  <ActivityIndicator color="#f093fb" />
-                ) : (
-                  <Text
-                    style={[styles.upgradeButtonText, { color: '#f093fb' }]}
-                  >
-                    Upgrade Now
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
-
-      {/* Action Buttons */}
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.surface }]}
-          onPress={handleRestore}
-        >
-          <Ionicons name="refresh" size={20} color={colors.primary} />
-          <Text style={[styles.actionButtonText, { color: colors.primary }]}>
-            Restore Purchases
+  return (
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      {/* Header */}
+      <LinearGradient
+        colors={isDark ? ['#1a1a2e', '#16213e'] : ['#667eea', '#764ba2']}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View
+            style={[
+              styles.planBadge,
+              { backgroundColor: 'rgba(255,255,255,0.2)' },
+            ]}
+          >
+            <Text style={styles.planBadgeText}>
+              {userSubscription.plan.toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.headerTitle}>
+            {formatSubscriptionStatus(userSubscription)}
           </Text>
-        </TouchableOpacity>
+          {isInTrial() && (
+            <Text style={styles.headerSubtitle}>
+              {getTrialDaysLeft()} days left in trial
+            </Text>
+          )}
+          {analytics?.daysUntilRenewal && analytics.daysUntilRenewal > 0 && (
+            <Text style={styles.headerSubtitle}>
+              Renews in {analytics.daysUntilRenewal} days
+            </Text>
+          )}
+        </View>
+      </LinearGradient>
+
+      {/* Usage Stats */}
+      {userSubscription.plan !== 'enterprise' && renderUsageStats()}
+
+      {/* Billing Period Toggle */}
+      <View style={styles.billingToggleContainer}>
+        <Text style={[styles.billingToggleLabel, { color: colors.text }]}>
+          Billing Period
+        </Text>
+        <View
+          style={[styles.billingToggle, { backgroundColor: colors.border }]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.billingOption,
+              billingPeriod === 'monthly' && {
+                backgroundColor: colors.primary,
+              },
+            ]}
+            onPress={() => setBillingPeriod('monthly')}
+          >
+            <Text
+              style={[
+                styles.billingOptionText,
+                {
+                  color: billingPeriod === 'monthly' ? 'white' : colors.text,
+                },
+              ]}
+            >
+              Monthly
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.billingOption,
+              billingPeriod === 'yearly' && {
+                backgroundColor: colors.primary,
+              },
+            ]}
+            onPress={() => setBillingPeriod('yearly')}
+          >
+            <Text
+              style={[
+                styles.billingOptionText,
+                {
+                  color: billingPeriod === 'yearly' ? 'white' : colors.text,
+                },
+              ]}
+            >
+              Yearly
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {billingPeriod === 'yearly' && (
+          <Text style={[styles.savingsNote, { color: colors.success }]}>
+            Save up to 17% with yearly billing
+          </Text>
+        )}
       </View>
 
-      {/* Subscription Modal */}
-      <SubscriptionModal
-        visible={showModal}
-        onClose={() => setShowModal(false)}
-        featureName="Pro Features"
-      />
+      {/* Plan Cards */}
+      <View style={styles.plansContainer}>
+        {SUBSCRIPTION_TIERS.map((tier) => renderPlanCard(tier))}
+      </View>
+
+      {/* Restore Purchases */}
+      <TouchableOpacity
+        style={[styles.restoreButton, { backgroundColor: colors.surface }]}
+        onPress={handleRestore}
+      >
+        <Ionicons name="refresh" size={20} color={colors.primary} />
+        <Text style={[styles.restoreButtonText, { color: colors.primary }]}>
+          Restore Purchases
+        </Text>
+      </TouchableOpacity>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+          All plans include a free trial. Cancel anytime.
+        </Text>
+        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+          Subscriptions auto-renew unless cancelled.
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -277,175 +404,244 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerGradient: {
+  header: {
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 30,
     paddingHorizontal: 20,
   },
-  header: {
+  headerContent: {
     alignItems: 'center',
   },
   planBadge: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 15,
-  },
-  planText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
-  featuresList: {
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  featureItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
     marginBottom: 12,
   },
-  featureText: {
-    fontSize: 16,
-    lineHeight: 22,
+  planBadgeText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
-  usageContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  usageItem: {
-    alignItems: 'center',
-  },
-  usageNumber: {
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  usageCard: {
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  usageRow: {
+    marginBottom: 16,
   },
   usageLabel: {
     fontSize: 14,
-    marginTop: 5,
+    marginBottom: 8,
   },
-  proCard: {
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  proCardContent: {
-    alignItems: 'center',
-  },
-  proIcon: {
-    marginBottom: 15,
-  },
-  proTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 10,
-  },
-  proPrice: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 10,
-  },
-  proSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  proFeatures: {
-    width: '100%',
-    marginBottom: 25,
-  },
-  proFeatureItem: {
+  usageBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    gap: 12,
   },
-  proFeatureText: {
+  usageBar: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  usageBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  usagePercentage: {
+    fontSize: 12,
+    width: 40,
+    textAlign: 'right',
+  },
+  upgradeRecommendation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  upgradeRecommendationText: {
+    flex: 1,
+    fontSize: 13,
+  },
+  billingToggleContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  billingToggleLabel: {
     fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  billingToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    padding: 4,
+  },
+  billingOption: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  billingOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  savingsNote: {
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  plansContainer: {
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  planCard: {
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 16,
+    position: 'relative',
+  },
+  currentPlanCard: {
+    borderWidth: 2,
+    borderColor: '#4ade80',
+  },
+  popularPlanCard: {
+    borderWidth: 2,
+    borderColor: '#667eea',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  popularBadgeText: {
     color: 'white',
-    marginLeft: 10,
-  },
-  upgradeButton: {
-    paddingHorizontal: 40,
-    paddingVertical: 15,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  upgradeButtonText: {
-    fontSize: 18,
+    fontSize: 10,
     fontWeight: 'bold',
   },
-  actionButton: {
+  currentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 4,
+  },
+  currentBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  planName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  planDescription: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  price: {
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  pricePeriod: {
+    fontSize: 16,
+    marginLeft: 4,
+  },
+  savingsBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  savingsText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  featuresContainer: {
+    marginBottom: 20,
+    gap: 10,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  featureText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  selectButton: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  selectButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  currentPlanButton: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  currentPlanButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  restoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
   },
-  actionButtonText: {
+  restoreButtonText: {
     fontSize: 16,
-    marginLeft: 10,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  footer: {
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+  },
+  footerText: {
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

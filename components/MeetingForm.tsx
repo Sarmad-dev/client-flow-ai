@@ -13,13 +13,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { X, Calendar, Clock, User, MapPin, Video } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import * as CalendarAPI from 'expo-calendar';
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 
 interface MeetingFormProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (meeting: any) => void;
-  clients: Array<{ id: string; name: string; company: string }>;
+  clients: Array<{ id: string; name: string; company: string; email?: string }>;
   initialData?: {
     title?: string;
     description?: string;
@@ -40,6 +40,7 @@ export function MeetingForm({
   initialData,
 }: MeetingFormProps) {
   const { colors } = useTheme();
+  const gc = useGoogleCalendar();
   const [title, setTitle] = useState(initialData?.title || '');
   const [description, setDescription] = useState(
     initialData?.description || ''
@@ -134,27 +135,73 @@ export function MeetingForm({
 
   const addToGoogleCalendar = async (meeting: any) => {
     try {
-      const { status } = await CalendarAPI.requestCalendarPermissionsAsync();
-      if (status === 'granted') {
-        const calendars = await CalendarAPI.getCalendarsAsync();
-        const defaultCalendar = calendars.find(
-          (cal) => cal.source.name === 'Default'
-        );
+      // Ensure Google connected
+      if (!gc.isConnected) {
+        const proceed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Connect Google Calendar',
+            'To add this meeting to your Google Calendar, please connect your Google account.',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => resolve(false),
+              },
+              {
+                text: 'Connect',
+                style: 'default',
+                onPress: async () => {
+                  await gc.connect();
+                  resolve(true);
+                },
+              },
+            ]
+          );
+        });
+        if (!proceed) return null;
+      }
 
-        if (defaultCalendar) {
-          await CalendarAPI.createEventAsync(defaultCalendar.id, {
-            title: meeting.title,
-            notes: `${meeting.description}\n\nAgenda:\n${meeting.agenda}`,
-            location: meeting.location,
-            startDate: new Date(meeting.startDate),
-            endDate: new Date(meeting.endDate),
-            allDay: false,
-          });
-        }
+      const client = clients.find((c) => c.id === meeting.clientId);
+      const attendees =
+        client && client.email
+          ? [
+              {
+                email: client.email,
+              },
+            ]
+          : [];
+
+      const eventId = await gc.createCalendarEvent({
+        summary: meeting.title,
+        description: `${meeting.description}\n\nAgenda:\n${meeting.agenda}\n\nMeeting Type: ${meeting.meetingType}`,
+        location: meeting.location,
+        start: {
+          dateTime: new Date(meeting.startDate).toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        end: {
+          dateTime: new Date(meeting.endDate).toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        attendees: attendees.length > 0 ? attendees : undefined,
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 15 },
+            { method: 'email', minutes: 60 },
+          ],
+        },
+      });
+
+      if (eventId) {
+        Alert.alert('Success', 'Meeting added to Google Calendar');
+        return eventId;
       }
     } catch (error) {
       console.error('Error adding to calendar:', error);
+      Alert.alert('Error', 'Failed to add meeting to Google Calendar');
     }
+    return null;
   };
 
   const resetForm = () => {
@@ -569,6 +616,16 @@ export function MeetingForm({
                     Add to Google Calendar
                   </Text>
                 </TouchableOpacity>
+                {addToCalendar && !gc.isConnected && (
+                  <TouchableOpacity
+                    style={{ marginTop: 8 }}
+                    onPress={gc.connect}
+                  >
+                    <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                      Connect Google Calendar
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
 

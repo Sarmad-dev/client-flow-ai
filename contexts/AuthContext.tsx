@@ -163,23 +163,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signInWithGoogle = async () => {
     try {
-      console.log('signInWithGoogle');
+      // Ensure any previous auth session is completed
       WebBrowser.maybeCompleteAuthSession();
 
-      const redirectTo = Linking.createURL('/auth/callback');
+      // Create the redirect URL for your app
+      const redirectTo = Linking.createURL('auth/callback');
+
+      console.log('Starting Google OAuth with redirect:', redirectTo);
+
+      // Initiate OAuth flow with Google
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
           skipBrowserRedirect: false,
+          // Request additional scopes if needed for Google Calendar
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 
-      console.log('data', data);
-      if (error) return { error };
-      // The session will be set after the deep link returns and exchangeCodeForSession succeeds
-      return { error: null };
+      if (error) {
+        console.error('Google OAuth error:', error);
+        return { error };
+      }
+
+      // Open the OAuth URL in browser
+      if (data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectTo
+        );
+
+        if (result.type === 'success') {
+          // The deep link handler will process the callback
+          return { error: null };
+        } else if (result.type === 'cancel') {
+          return { error: new Error('User cancelled the sign-in flow') };
+        } else {
+          return { error: new Error('Authentication failed') };
+        }
+      }
+
+      return { error: new Error('No OAuth URL returned') };
     } catch (error) {
+      console.error('Google sign-in error:', error);
       return { error } as { error: any };
     }
   };

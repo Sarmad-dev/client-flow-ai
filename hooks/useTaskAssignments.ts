@@ -433,28 +433,33 @@ export function useBulkAssignTask() {
 }
 
 // Helper function to send assignment notifications
-// In a production app, this would be handled by a background job or webhook
 async function sendAssignmentNotification(assignment: TaskAssignment) {
   try {
-    // This is a placeholder for notification logic
-    // You might want to:
-    // 1. Send an email notification
-    // 2. Create an in-app notification
-    // 3. Send a push notification
-    // 4. Log the assignment for audit purposes
+    const { notifyTaskAssigned } = await import('@/lib/notifications');
+    const { supabase } = await import('@/lib/supabase');
 
-    console.log(
-      `Task assignment notification: User ${assignment.user?.email} assigned to task ${assignment.task_id}`
-    );
+    // Get task details
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('title')
+      .eq('id', assignment.task_id)
+      .single();
 
-    // Example: Create an in-app notification record
-    // await supabase.from('notifications').insert({
-    //   user_id: assignment.user_id,
-    //   type: 'task_assignment',
-    //   title: 'New Task Assignment',
-    //   message: `You have been assigned to a new task`,
-    //   data: { task_id: assignment.task_id },
-    // });
+    if (!task) return;
+
+    // Get assigner name
+    const assignerName =
+      assignment.assigned_by_user?.full_name ||
+      assignment.assigned_by_user?.email ||
+      'Someone';
+
+    // Send notification
+    await notifyTaskAssigned({
+      assigneeUserId: assignment.user_id,
+      taskId: assignment.task_id,
+      taskTitle: task.title,
+      assignedByName: assignerName,
+    });
   } catch (error) {
     console.error('Error sending assignment notification:', error);
   }
