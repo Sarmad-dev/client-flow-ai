@@ -53,70 +53,131 @@ function badRequest(msg: string, code = 400) {
   });
 }
 
-// Enhanced signature verification
-async function verifySendGridSignature(
-  payload: string,
-  signature: string,
-  timestamp: string
-): Promise<{ valid: boolean; error?: string }> {
-  if (!SENDGRID_WEBHOOK_VERIFY_KEY) {
-    log(
-      'warn',
-      'Webhook verification key not configured - skipping validation'
+// Parse raw email content to extract text and HTML bodies
+function parseRawEmailContent(rawEmail: string): {
+  text: string;
+  html: string;
+} {
+  let textBody = '';
+  let htmlBody = '';
+
+  try {
+    // Split by Content-Type boundaries to find text/plain and text/html sections
+    const textPlainMatch = rawEmail.match(
+      /Content-Type:\s*text\/plain[^]*?(?=--|\r?\n\r?\n[^-]|$)/i
     );
-    return { valid: true };
+    const textHtmlMatch = rawEmail.match(
+      /Content-Type:\s*text\/html[^]*?(?=--|\r?\n\r?\n[^-]|$)/i
+    );
+
+    // Extract text/plain content
+    if (textPlainMatch) {
+      const textSection = textPlainMatch[0];
+      // Find the content after the headers (after double newline)
+      const contentMatch = textSection.match(
+        /\r?\n\r?\n([\s\S]*?)(?=--|\r?\n--|\r?\n\r?\n--|\r?\n\r?\n[A-Z]|$)/
+      );
+      if (contentMatch) {
+        textBody = contentMatch[1].trim();
+      }
+    }
+
+    // Extract text/html content
+    if (textHtmlMatch) {
+      const htmlSection = textHtmlMatch[0];
+      // Find the content after the headers (after double newline)
+      const contentMatch = htmlSection.match(
+        /\r?\n\r?\n([\s\S]*?)(?=--|\r?\n--|\r?\n\r?\n--|\r?\n\r?\n[A-Z]|$)/
+      );
+      if (contentMatch) {
+        htmlBody = contentMatch[1].trim();
+        // Decode quoted-printable if present
+        if (htmlSection.includes('quoted-printable')) {
+          htmlBody = htmlBody
+            .replace(/=\r?\n/g, '') // Remove soft line breaks
+            .replace(/=([0-9A-F]{2})/g, (match, hex) =>
+              String.fromCharCode(parseInt(hex, 16))
+            ); // Decode hex
+        }
+      }
+    }
+
+    // Fallback: try to extract from spam report content preview
+    if (!textBody && !htmlBody) {
+      const contentPreviewMatch = rawEmail.match(
+        /Content preview:\s*([^\r\n]+)/i
+      );
+      if (contentPreviewMatch) {
+        textBody = contentPreviewMatch[1].trim();
+      }
+    }
+
+    log('info', 'Raw email parsing results', {
+      foundTextPlain: !!textPlainMatch,
+      foundTextHtml: !!textHtmlMatch,
+      textBodyLength: textBody.length,
+      htmlBodyLength: htmlBody.length,
+      textPreview: textBody.substring(0, 100),
+      htmlPreview: htmlBody.substring(0, 100),
+    });
+  } catch (error) {
+    log('error', 'Error parsing raw email content', {
+      error: String(error),
+    });
   }
 
-  if (!signature || !timestamp) {
-    return { valid: false, error: 'Missing signature or timestamp' };
-  }
+  return { text: textBody, html: htmlBody };
+}
 
-  // Verify timestamp is recent (within 10 minutes)
-  const eventTime = parseInt(timestamp, 10);
-  const currentTime = Math.floor(Date.now() / 1000);
-  const timeDiff = Math.abs(currentTime - eventTime);
+// Parse multipart form data manually
+function parseMultipartFormData(
+  body: string,
+  boundary: string
+): Record<string, string> {
+  const data: Record<string, string> = {};
 
-  if (timeDiff > 600) {
-    return {
-      valid: false,
-      error: `Timestamp too old: ${timeDiff}s difference`,
-    };
+  if (!boundary) {
+    log('warn', 'No boundary found for multipart parsing');
+    return data;
   }
 
   try {
-    const data = new TextEncoder().encode(timestamp + payload);
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(SENDGRID_WEBHOOK_VERIFY_KEY),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign', 'verify']
-    );
+    // Split by boundary
+    const parts = body.split(`--${boundary}`);
 
-    const sig = await crypto.subtle.sign('HMAC', key, data);
-    const expected = Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
+    for (const part of parts) {
+      if (!part.trim() || part.trim() === '--') continue;
 
-    const signatureBytes = new TextEncoder().encode(signature.toLowerCase());
-    const expectedBytes = new TextEncoder().encode(expected);
+      // Find the double newline that separates headers from content
+      const headerEndIndex = part.indexOf('\r\n\r\n');
+      if (headerEndIndex === -1) continue;
 
-    if (signatureBytes.length !== expectedBytes.length) {
-      return { valid: false, error: 'Signature length mismatch' };
+      const headers = part.substring(0, headerEndIndex);
+      const content = part.substring(headerEndIndex + 4).trim();
+
+      // Extract field name from Content-Disposition header
+      const nameMatch = headers.match(/name="([^"]+)"/);
+      if (nameMatch && nameMatch[1]) {
+        const fieldName = nameMatch[1];
+        // Remove trailing boundary markers and whitespace
+        const cleanContent = content.replace(/\r?\n?--$/, '').trim();
+        data[fieldName] = cleanContent;
+      }
     }
 
-    let result = 0;
-    for (let i = 0; i < signatureBytes.length; i++) {
-      result |= signatureBytes[i] ^ expectedBytes[i];
-    }
-
-    return result === 0
-      ? { valid: true }
-      : { valid: false, error: 'Signature verification failed' };
+    log('info', 'Multipart parsing completed', {
+      partsFound: parts.length,
+      fieldsExtracted: Object.keys(data).length,
+      fields: Object.keys(data),
+    });
   } catch (error) {
-    log('error', 'Signature verification error', { error: String(error) });
-    return { valid: false, error: 'Signature verification exception' };
+    log('error', 'Error parsing multipart data', {
+      error: String(error),
+      boundaryLength: boundary.length,
+    });
   }
+
+  return data;
 }
 
 // Extract email address from various formats
@@ -334,23 +395,7 @@ async function handler(req: Request): Promise<Response> {
 
   const rawBody = await req.text();
 
-  // Enhanced signature verification
-  const signature = req.headers.get('X-Twilio-Email-Event-Webhook-Signature');
-  const timestamp = req.headers.get('X-Twilio-Email-Event-Webhook-Timestamp');
-
-  const verificationResult = await verifySendGridSignature(
-    rawBody,
-    signature || '',
-    timestamp || ''
-  );
-
-  if (!verificationResult.valid) {
-    log('error', 'Signature verification failed', {
-      requestId,
-      error: verificationResult.error,
-    });
-    return badRequest(verificationResult.error || 'Invalid signature');
-  }
+  log('info', 'Raw Email Body', { rawBody });
 
   // SendGrid Inbound Parse sends form-data or JSON
   let parsedData: any = {};
@@ -359,58 +404,117 @@ async function handler(req: Request): Promise<Response> {
   try {
     if (contentType.includes('application/json')) {
       parsedData = JSON.parse(rawBody);
-      log('info', 'Parsed JSON payload', { requestId });
+      log('info', 'Parsed JSON payload', {
+        requestId,
+        keys: Object.keys(parsedData),
+      });
     } else if (contentType.includes('multipart/form-data')) {
       // Handle multipart form data (with attachments)
       const boundary = contentType.split('boundary=')[1];
-      if (boundary) {
-        // For now, we'll use URLSearchParams for simple fields
-        // Full multipart parsing would require additional library
-        log('info', 'Received multipart form data', { requestId });
-      }
+      log('info', 'Received multipart form data', {
+        requestId,
+        boundary: boundary?.substring(0, 20) + '...',
+        contentType,
+      });
 
-      const body = new URLSearchParams(rawBody);
-      parsedData = {};
-      for (const [key, value] of body.entries()) {
-        parsedData[key] = value;
-      }
+      // Parse multipart form data manually
+      parsedData = parseMultipartFormData(rawBody, boundary);
+      log('info', 'Parsed multipart data', {
+        requestId,
+        keys: Object.keys(parsedData),
+        fieldCount: Object.keys(parsedData).length,
+      });
     } else {
       // Parse as URL-encoded form data
-      const body = new URLSearchParams(rawBody);
-      parsedData = {};
-      for (const [key, value] of body.entries()) {
-        parsedData[key] = value;
+      try {
+        const body = new URLSearchParams(rawBody);
+        parsedData = {};
+        for (const [key, value] of body.entries()) {
+          parsedData[key] = value;
+        }
+        log('info', 'Parsed form-encoded payload', {
+          requestId,
+          keys: Object.keys(parsedData),
+          fieldCount: Object.keys(parsedData).length,
+        });
+      } catch (urlError) {
+        // If URLSearchParams fails, try to parse as raw text
+        log('warn', 'URLSearchParams failed, trying raw parsing', {
+          requestId,
+          error: String(urlError),
+        });
+
+        // Simple key=value parsing for basic form data
+        const lines = rawBody.split(/[&\n]/);
+        for (const line of lines) {
+          const [key, ...valueParts] = line.split('=');
+          if (key && valueParts.length > 0) {
+            const value = valueParts.join('=');
+            try {
+              parsedData[decodeURIComponent(key)] = decodeURIComponent(value);
+            } catch {
+              parsedData[key] = value;
+            }
+          }
+        }
+        log('info', 'Parsed raw form data', {
+          requestId,
+          keys: Object.keys(parsedData),
+        });
       }
-      log('info', 'Parsed form-encoded payload', { requestId });
     }
   } catch (error) {
     log('error', 'Invalid payload format', {
       requestId,
       error: String(error),
       contentType,
+      bodyPreview: rawBody.substring(0, 200),
     });
     return badRequest('Invalid payload format');
   }
 
-  // Extract and normalize email addresses
-  const senderRaw = parsedData.from || '';
-  const recipientRaw = parsedData.to || '';
+  // Extract and normalize email addresses - try multiple field names
+  const senderRaw = parsedData.from || parsedData.sender || '';
+  const recipientRaw =
+    parsedData.to ||
+    parsedData.recipient ||
+    parsedData.email ||
+    parsedData.envelope_to ||
+    parsedData['envelope[to]'] ||
+    '';
+
   const sender = extractEmailAddress(senderRaw);
   const recipient = extractEmailAddress(recipientRaw);
 
   const subject = parsedData.subject || '';
-  const bodyText = parsedData.text || '';
-  const bodyHtml = parsedData.html || '';
 
-  log('info', 'Email details extracted', {
-    requestId,
-    sender,
-    recipient,
-    subject,
-    hasText: !!bodyText,
-    hasHtml: !!bodyHtml,
-  });
+  // Try multiple field names for body content
+  let bodyText =
+    parsedData.text ||
+    parsedData.body ||
+    parsedData.plain ||
+    parsedData['text/plain'] ||
+    parsedData.body_text ||
+    '';
 
+  let bodyHtml =
+    parsedData.html ||
+    parsedData.body_html ||
+    parsedData['text/html'] ||
+    parsedData.html_body ||
+    '';
+
+  // If no body content found in standard fields, try parsing raw email content
+  if (!bodyText && !bodyHtml && parsedData.email) {
+    log('info', 'No body content in standard fields, parsing raw email', {
+      requestId,
+      rawEmailLength: parsedData.email.length,
+    });
+
+    const parsedContent = parseRawEmailContent(parsedData.email);
+    bodyText = parsedContent.text;
+    bodyHtml = parsedContent.html;
+  }
   // Parse headers with enhanced extraction
   const headers = parseHeaders(parsedData.headers || '{}');
   const { messageId, inReplyTo, references } = extractMessageIds(headers);
@@ -422,8 +526,19 @@ async function handler(req: Request): Promise<Response> {
       typeof parsedData.envelope === 'string'
         ? JSON.parse(parsedData.envelope)
         : parsedData.envelope || {};
-  } catch {
-    log('warn', 'Failed to parse envelope', { requestId });
+
+    log('info', 'Envelope parsed', {
+      requestId,
+      envelope,
+      envelopeTo: envelope.to,
+      envelopeFrom: envelope.from,
+    });
+  } catch (error) {
+    log('warn', 'Failed to parse envelope', {
+      requestId,
+      error: String(error),
+      rawEnvelope: parsedData.envelope,
+    });
   }
 
   // Parse attachments
@@ -452,13 +567,32 @@ async function handler(req: Request): Promise<Response> {
   const nowIso = new Date().toISOString();
 
   try {
+    // Try to get recipient from envelope if main extraction failed
+    let finalRecipient = recipient;
+    if (!finalRecipient && envelope.to) {
+      if (Array.isArray(envelope.to)) {
+        finalRecipient = extractEmailAddress(envelope.to[0] || '');
+      } else {
+        finalRecipient = extractEmailAddress(envelope.to);
+      }
+      log('info', 'Using envelope recipient', {
+        requestId,
+        envelopeRecipient: finalRecipient,
+      });
+    }
+
     // Find the user based on recipient email
-    if (!recipient) {
-      log('error', 'No recipient email provided', { requestId });
+    if (!finalRecipient) {
+      log('error', 'No recipient email provided', {
+        requestId,
+        originalRecipient: recipient,
+        envelopeTo: envelope.to,
+        allFields: Object.keys(parsedData),
+      });
       return badRequest('No recipient email', 400);
     }
 
-    const local = recipient.split('@')[0]?.toLowerCase();
+    const local = finalRecipient.split('@')[0]?.toLowerCase();
 
     // Map alias local-part to a user via profiles.email
     const { data: profile, error: profileErr } = await supabaseAdmin
@@ -470,21 +604,98 @@ async function handler(req: Request): Promise<Response> {
     if (profileErr) {
       log('error', 'Error fetching profile', {
         requestId,
-        recipient,
+        recipient: finalRecipient,
         error: profileErr.message,
       });
       throw profileErr;
     }
 
     if (!profile?.user_id) {
-      log('warn', 'Unknown recipient', { requestId, recipient });
+      log('warn', 'Unknown recipient', {
+        requestId,
+        recipient: finalRecipient,
+      });
       return badRequest('Unknown recipient', 404);
     }
 
     log('info', 'Profile found for recipient', {
       requestId,
       userId: profile.user_id,
-      recipient,
+      recipient: finalRecipient,
+    });
+
+    // Check for duplicate emails to prevent double insertion
+    // Use a combination of sender, recipient, subject, and timestamp for deduplication
+    const deduplicationKey = `${sender}_${finalRecipient}_${subject}_${Math.floor(
+      Date.now() / 60000
+    )}`; // 1-minute window
+    const messageIdForDedup = messageId || `generated_${crypto.randomUUID()}`;
+
+    // Check if this email already exists
+    const { data: existingEmail, error: duplicateCheckErr } =
+      await supabaseAdmin
+        .from('email_communications')
+        .select('id, created_at')
+        .eq('user_id', profile.user_id)
+        .eq('sender_email', sender)
+        .eq('recipient_email', finalRecipient)
+        .eq('subject', subject)
+        .eq('direction', 'received')
+        .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Within last 5 minutes
+        .maybeSingle();
+
+    if (duplicateCheckErr) {
+      log('warn', 'Error checking for duplicates', {
+        requestId,
+        error: duplicateCheckErr.message,
+      });
+    }
+
+    if (existingEmail) {
+      log('warn', 'Duplicate email detected - skipping insertion', {
+        requestId,
+        existingEmailId: existingEmail.id,
+        existingCreatedAt: existingEmail.created_at,
+        sender,
+        recipient: finalRecipient,
+        subject,
+      });
+      return new Response('Duplicate email - already processed', {
+        status: 200,
+      });
+    }
+
+    // Also check by message ID if available
+    if (messageId) {
+      const { data: existingByMessageId } = await supabaseAdmin
+        .from('email_communications')
+        .select('id')
+        .eq('sendgrid_message_id', messageId)
+        .maybeSingle();
+
+      if (existingByMessageId) {
+        log(
+          'warn',
+          'Duplicate email detected by message ID - skipping insertion',
+          {
+            requestId,
+            existingEmailId: existingByMessageId.id,
+            messageId,
+            sender,
+            recipient: finalRecipient,
+          }
+        );
+        return new Response(
+          'Duplicate email by message ID - already processed',
+          { status: 200 }
+        );
+      }
+    }
+
+    log('info', 'No duplicate found, proceeding with insertion', {
+      requestId,
+      deduplicationKey,
+      messageId: messageIdForDedup,
     });
 
     // Check if sender is in suppression list (shouldn't happen but good to check)
@@ -511,7 +722,7 @@ async function handler(req: Request): Promise<Response> {
       body_text: bodyText || null,
       body_html: bodyHtml || null,
       sender_email: sender || null,
-      recipient_email: recipient || null,
+      recipient_email: finalRecipient || null,
       status: spamCheck.isSpam ? 'spam' : 'received',
       sendgrid_message_id: messageId || null,
       in_reply_to_message_id: inReplyTo || null,
@@ -658,7 +869,7 @@ async function handler(req: Request): Promise<Response> {
       requestId,
       emailId: insertedEmail.id,
       sender,
-      recipient,
+      recipient: finalRecipient,
     });
 
     // Update metrics

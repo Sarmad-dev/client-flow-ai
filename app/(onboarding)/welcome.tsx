@@ -1,12 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,14 +11,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Smartphone, ArrowRight, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-const { width, height } = Dimensions.get('window');
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function WelcomeScreen() {
   const { colors } = useTheme();
-  
+
   // Animation values
   const logoScale = useSharedValue(0);
   const logoRotation = useSharedValue(0);
@@ -41,13 +33,14 @@ export default function WelcomeScreen() {
       withTiming(360, { duration: 1000 }),
       withTiming(0, { duration: 0 })
     );
-    
+
     titleOpacity.value = withDelay(300, withTiming(1, { duration: 800 }));
     subtitleOpacity.value = withDelay(600, withTiming(1, { duration: 800 }));
     buttonOpacity.value = withDelay(900, withTiming(1, { duration: 800 }));
-    
+
     // Sparkle animation
-    sparkleScale.value = withDelay(1200, 
+    sparkleScale.value = withDelay(
+      1200,
       withSequence(
         withSpring(1, { damping: 10 }),
         withSpring(1.2, { damping: 10 }),
@@ -59,23 +52,29 @@ export default function WelcomeScreen() {
   const logoAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: logoScale.value },
-      { rotate: `${logoRotation.value}deg` }
+      { rotate: `${logoRotation.value}deg` },
     ],
   }));
 
   const titleAnimatedStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,
-    transform: [{ translateY: interpolate(titleOpacity.value, [0, 1], [30, 0]) }],
+    transform: [
+      { translateY: interpolate(titleOpacity.value, [0, 1], [30, 0]) },
+    ],
   }));
 
   const subtitleAnimatedStyle = useAnimatedStyle(() => ({
     opacity: subtitleOpacity.value,
-    transform: [{ translateY: interpolate(subtitleOpacity.value, [0, 1], [30, 0]) }],
+    transform: [
+      { translateY: interpolate(subtitleOpacity.value, [0, 1], [30, 0]) },
+    ],
   }));
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
     opacity: buttonOpacity.value,
-    transform: [{ translateY: interpolate(buttonOpacity.value, [0, 1], [30, 0]) }],
+    transform: [
+      { translateY: interpolate(buttonOpacity.value, [0, 1], [30, 0]) },
+    ],
   }));
 
   const sparkleAnimatedStyle = useAnimatedStyle(() => ({
@@ -83,9 +82,15 @@ export default function WelcomeScreen() {
   }));
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <LinearGradient
-        colors={[colors.primary + '10', colors.secondary + '10', colors.background]}
+        colors={[
+          colors.primary + '10',
+          colors.secondary + '10',
+          colors.background,
+        ]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -94,61 +99,92 @@ export default function WelcomeScreen() {
           {/* Logo Section */}
           <View style={styles.logoSection}>
             <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
-              <LinearGradient
-                colors={[colors.primary, colors.secondary]}
+              <Image
+                source={require('@/assets/images/app-icon.png')}
                 style={styles.logo}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Smartphone size={48} color="#FFFFFF" strokeWidth={2} />
-              </LinearGradient>
+                resizeMode="contain"
+              />
             </Animated.View>
-            
-            <Animated.View style={[styles.sparkleContainer, sparkleAnimatedStyle]}>
+
+            <Animated.View
+              style={[styles.sparkleContainer, sparkleAnimatedStyle]}
+            >
               <Sparkles size={24} color={colors.accent} strokeWidth={2} />
             </Animated.View>
           </View>
 
           {/* Text Section */}
           <View style={styles.textSection}>
-            <Animated.Text style={[styles.title, { color: colors.text }, titleAnimatedStyle]}>
+            <Animated.Text
+              style={[styles.title, { color: colors.text }, titleAnimatedStyle]}
+            >
               Welcome to{'\n'}ClientFlow AI
             </Animated.Text>
-            
-            <Animated.Text style={[styles.subtitle, { color: colors.textSecondary }, subtitleAnimatedStyle]}>
-              Your AI-powered CRM companion that transforms how you manage clients, 
-              capture tasks with voice, and grow your business.
+
+            <Animated.Text
+              style={[
+                styles.subtitle,
+                { color: colors.textSecondary },
+                subtitleAnimatedStyle,
+              ]}
+            >
+              Your AI-powered CRM companion that transforms how you manage
+              clients, capture tasks with voice, and grow your business.
             </Animated.Text>
           </View>
 
           {/* Features Preview */}
           <Animated.View style={[styles.featuresPreview, buttonAnimatedStyle]}>
             <View style={styles.featureItem}>
-              <View style={[styles.featureIcon, { backgroundColor: colors.primary + '20' }]}>
+              <View
+                style={[
+                  styles.featureIcon,
+                  { backgroundColor: colors.primary + '20' },
+                ]}
+              >
                 <Text style={styles.featureEmoji}>🎤</Text>
               </View>
-              <Text style={[styles.featureText, { color: colors.text }]}>Voice-to-Task AI</Text>
+              <Text style={[styles.featureText, { color: colors.text }]}>
+                Voice-to-Task AI
+              </Text>
             </View>
-            
+
             <View style={styles.featureItem}>
-              <View style={[styles.featureIcon, { backgroundColor: colors.secondary + '20' }]}>
+              <View
+                style={[
+                  styles.featureIcon,
+                  { backgroundColor: colors.secondary + '20' },
+                ]}
+              >
                 <Text style={styles.featureEmoji}>🗺️</Text>
               </View>
-              <Text style={[styles.featureText, { color: colors.text }]}>Lead Discovery</Text>
+              <Text style={[styles.featureText, { color: colors.text }]}>
+                Lead Discovery
+              </Text>
             </View>
-            
+
             <View style={styles.featureItem}>
-              <View style={[styles.featureIcon, { backgroundColor: colors.accent + '20' }]}>
+              <View
+                style={[
+                  styles.featureIcon,
+                  { backgroundColor: colors.accent + '20' },
+                ]}
+              >
                 <Text style={styles.featureEmoji}>⚡</Text>
               </View>
-              <Text style={[styles.featureText, { color: colors.text }]}>Smart Automation</Text>
+              <Text style={[styles.featureText, { color: colors.text }]}>
+                Smart Automation
+              </Text>
             </View>
           </Animated.View>
 
           {/* Get Started Button */}
           <Animated.View style={[styles.buttonContainer, buttonAnimatedStyle]}>
             <TouchableOpacity
-              style={[styles.getStartedButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.getStartedButton,
+                { backgroundColor: colors.primary },
+              ]}
               onPress={() => router.push('/(onboarding)/features')}
               activeOpacity={0.8}
             >
@@ -187,8 +223,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,

@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -19,14 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  LogIn,
-  Smartphone,
-} from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -119,16 +112,13 @@ export default function SignInScreen() {
         <View style={styles.content}>
           {/* Logo Section */}
           <Animated.View style={[styles.logoSection, logoAnimatedStyle]}>
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
+            <Image
+              source={require('@/assets/images/app-icon.png')}
               style={styles.logoContainer}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Smartphone size={32} color="#FFFFFF" strokeWidth={2} />
-            </LinearGradient>
+              resizeMode="contain"
+            />
             <Text style={[styles.appName, { color: colors.text }]}>
-              ClientFlow AI
+              NexaSuit
             </Text>
             <Text style={[styles.tagline, { color: colors.textSecondary }]}>
               Your AI-powered CRM companion
@@ -324,8 +314,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },

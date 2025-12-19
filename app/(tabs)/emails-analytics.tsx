@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -38,11 +38,16 @@ export default function EmailsAnalyticsScreen() {
   });
 
   const {
-    guardAnalyticsAccess,
+    canAccessAnalytics,
     showSubscriptionModal,
     setShowSubscriptionModal,
     modalFeatureName,
   } = useSubscriptionGuard();
+
+  // Memoize the analytics access check to prevent re-renders
+  const hasAnalyticsAccess = useMemo(() => {
+    return canAccessAnalytics();
+  }, [canAccessAnalytics]);
 
   const tabs = [
     { key: 'overview' as TabType, label: 'Overview', icon: TrendingUp },
@@ -86,8 +91,15 @@ export default function EmailsAnalyticsScreen() {
     setShowDatePicker(false);
   };
 
+  // Handle analytics access check
+  useEffect(() => {
+    if (!hasAnalyticsAccess) {
+      setShowSubscriptionModal(true);
+    }
+  }, [hasAnalyticsAccess, setShowSubscriptionModal]);
+
   // Check if user has access to analytics
-  if (!guardAnalyticsAccess()) {
+  if (!hasAnalyticsAccess) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: colors.background }]}
@@ -105,7 +117,7 @@ export default function EmailsAnalyticsScreen() {
         <SubscriptionModal
           visible={showSubscriptionModal}
           onClose={() => setShowSubscriptionModal(false)}
-          featureName={modalFeatureName}
+          featureName="Email Analytics"
         />
       </SafeAreaView>
     );

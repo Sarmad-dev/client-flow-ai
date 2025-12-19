@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -20,9 +19,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
-import { Mail, ArrowLeft, Send, Smartphone, RotateCcw } from 'lucide-react-native';
+import {
+  Mail,
+  ArrowLeft,
+  Send,
+  Smartphone,
+  RotateCcw,
+} from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
@@ -47,7 +53,9 @@ export default function ForgotPasswordScreen() {
 
   const formAnimatedStyle = useAnimatedStyle(() => ({
     opacity: formOpacity.value,
-    transform: [{ translateY: interpolate(formOpacity.value, [0, 1], [50, 0]) }],
+    transform: [
+      { translateY: interpolate(formOpacity.value, [0, 1], [50, 0]) },
+    ],
   }));
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
@@ -87,7 +95,9 @@ export default function ForgotPasswordScreen() {
 
   if (emailSent) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
         <View style={styles.content}>
           <Animated.View style={[styles.successSection, logoAnimatedStyle]}>
             <LinearGradient
@@ -98,8 +108,12 @@ export default function ForgotPasswordScreen() {
             >
               <Send size={32} color="#FFFFFF" strokeWidth={2} />
             </LinearGradient>
-            <Text style={[styles.successTitle, { color: colors.text }]}>Check your email</Text>
-            <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
+            <Text style={[styles.successTitle, { color: colors.text }]}>
+              Check your email
+            </Text>
+            <Text
+              style={[styles.successSubtitle, { color: colors.textSecondary }]}
+            >
               We've sent a password reset link to{'\n'}
               <Text style={{ fontWeight: '600' }}>{email}</Text>
             </Text>
@@ -107,18 +121,25 @@ export default function ForgotPasswordScreen() {
 
           <Animated.View style={[styles.actionsSection, formAnimatedStyle]}>
             <TouchableOpacity
-              style={[styles.resendButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.resendButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={handleResendEmail}
               disabled={loading}
             >
               <RotateCcw size={20} color={colors.primary} strokeWidth={2} />
-              <Text style={[styles.resendButtonText, { color: colors.primary }]}>
+              <Text
+                style={[styles.resendButtonText, { color: colors.primary }]}
+              >
                 Resend Email
               </Text>
             </TouchableOpacity>
 
             <Link href="/(auth)/sign-in" asChild>
-              <TouchableOpacity style={[styles.backButton, { backgroundColor: colors.primary }]}>
+              <TouchableOpacity
+                style={[styles.backButton, { backgroundColor: colors.primary }]}
+              >
                 <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2} />
                 <Text style={styles.backButtonText}>Back to Sign In</Text>
               </TouchableOpacity>
@@ -130,8 +151,10 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
@@ -155,7 +178,9 @@ export default function ForgotPasswordScreen() {
             >
               <RotateCcw size={32} color="#FFFFFF" strokeWidth={2} />
             </LinearGradient>
-            <Text style={[styles.appName, { color: colors.text }]}>Reset Password</Text>
+            <Text style={[styles.appName, { color: colors.text }]}>
+              Reset Password
+            </Text>
             <Text style={[styles.tagline, { color: colors.textSecondary }]}>
               Enter your email to receive a reset link
             </Text>
@@ -163,14 +188,24 @@ export default function ForgotPasswordScreen() {
 
           {/* Form Section */}
           <Animated.View style={[styles.formSection, formAnimatedStyle]}>
-            <Text style={[styles.welcomeText, { color: colors.text }]}>Forgot password?</Text>
+            <Text style={[styles.welcomeText, { color: colors.text }]}>
+              Forgot password?
+            </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               No worries, we'll send you reset instructions
             </Text>
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
                 <Mail size={20} color={colors.textSecondary} strokeWidth={2} />
                 <TextInput
                   style={[styles.input, { color: colors.text }]}
@@ -188,7 +223,10 @@ export default function ForgotPasswordScreen() {
             {/* Reset Button */}
             <Animated.View style={buttonAnimatedStyle}>
               <TouchableOpacity
-                style={[styles.resetButton, { backgroundColor: colors.primary }]}
+                style={[
+                  styles.resetButton,
+                  { backgroundColor: colors.primary },
+                ]}
                 onPress={handleResetPassword}
                 disabled={loading}
                 activeOpacity={0.8}
@@ -208,8 +246,17 @@ export default function ForgotPasswordScreen() {
             <View style={styles.backToSignInContainer}>
               <Link href="/(auth)/sign-in" asChild>
                 <TouchableOpacity style={styles.backToSignInButton}>
-                  <ArrowLeft size={16} color={colors.textSecondary} strokeWidth={2} />
-                  <Text style={[styles.backToSignInText, { color: colors.textSecondary }]}>
+                  <ArrowLeft
+                    size={16}
+                    color={colors.textSecondary}
+                    strokeWidth={2}
+                  />
+                  <Text
+                    style={[
+                      styles.backToSignInText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     Back to sign in
                   </Text>
                 </TouchableOpacity>
