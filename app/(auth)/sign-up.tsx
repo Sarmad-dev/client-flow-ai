@@ -21,13 +21,11 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { CustomAlert } from '@/components/CustomAlert';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
 import { User, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAlert } from '@/contexts/CustomAlertContext';
-import { CustomAlert } from '@/components/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignUpScreen() {

@@ -11,11 +11,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { MeetingCard } from '@/components/MeetingCard';
 import { MeetingForm } from '@/components/MeetingForm';
 import { useClients } from '@/hooks/useClients';
-import {
-  useMeetings,
-  useCreateMeeting,
-  EnrichedMeeting,
-} from '@/hooks/useMeetings';
+import { useMeetings, useCreateMeeting } from '@/hooks/useMeetings';
+import type { EnrichedMeeting } from '@/types/meeting-management';
 import { MeetingFormData } from '@/lib/validation';
 import { CustomAlert } from '@/components/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -85,6 +82,14 @@ export default function MeetingsScreen() {
         agenda: form.agenda || null,
         summary: null,
         voice_recording_id: null,
+        google_calendar_event_id: null,
+        zoom_meeting_id: null,
+        teams_meeting_id: null,
+        meet_link: null,
+        template_id: null,
+        engagement_score: null,
+        preparation_sent: false,
+        follow_up_sent: false,
         status: 'scheduled' as const,
       };
       await createMeeting.mutateAsync(payload);
