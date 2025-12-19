@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Alert,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { CustomAlert } from './CustomAlert';
 
 interface SubscriptionModalProps {
   visible: boolean;
@@ -27,36 +28,66 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   onClose,
   featureName = 'Pro Feature',
 }) => {
-  const { userSubscription, currentOffering, purchaseSubscription, isLoading } =
-    useSubscription();
+  const { currentOffering, purchasePackage, isLoading } = useSubscription();
   const { colors, isDark } = useTheme();
   const [purchasing, setPurchasing] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
 
   const handlePurchase = async () => {
     if (!currentOffering?.availablePackages?.[0]) {
-      Alert.alert('Error', 'No subscription packages available');
+      showAlert('Error', 'No subscription packages available');
       return;
     }
 
     setPurchasing(true);
     try {
-      const success = await purchaseSubscription(
-        currentOffering.availablePackages[0].identifier
+      const success = await purchasePackage(
+        currentOffering.availablePackages[0]
       );
       if (success) {
-        Alert.alert(
+        showAlert(
           'Success',
-          'Welcome to Pro! You now have unlimited access to all features.'
+          'Welcome to Pro! You now have unlimited access to all features.',
+          onClose
         );
-        onClose();
       } else {
-        Alert.alert(
+        showAlert(
           'Error',
           'Failed to purchase subscription. Please try again.'
         );
       }
     } catch (error) {
-      Alert.alert(
+      showAlert(
         'Error',
         'An error occurred during purchase. Please try again.'
       );
@@ -173,7 +204,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             <View style={styles.priceContainer}>
               <Text style={[styles.price, { color: colors.surface }]}>
                 {currentOffering?.availablePackages?.[0]?.product
-                  ?.priceString || '$5.00'}
+                  ?.priceString || '$9.00'}
               </Text>
               <Text
                 style={[
@@ -225,6 +256,14 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           </View>
         </LinearGradient>
       </View>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        onConfirm={alertConfig.onConfirm}
+      />
     </Modal>
   );
 };

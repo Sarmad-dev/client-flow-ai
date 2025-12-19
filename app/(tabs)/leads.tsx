@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -21,6 +20,7 @@ import { LeadDetailModal } from '@/components/leads/LeadDetailModal';
 import { LeadFilterSheet } from '@/components/leads/LeadFilterSheet';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
+import { CustomAlert } from '@/components/CustomAlert';
 
 import type { LeadRecord } from '@/hooks/useLeads';
 
@@ -43,6 +43,17 @@ export default function LeadsScreen() {
     modalFeatureName,
   } = useSubscriptionGuard();
 
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
   const handleCreateLead = () => {
     if (guardLeadCreation()) {
       setShowLeadForm(true);
@@ -56,6 +67,27 @@ export default function LeadsScreen() {
 
   const createClient = useCreateClient();
   const convertLeadToClient = useConvertLeadToClient();
+
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
 
   const handleConvertToClient = async (leadId: string) => {
     try {
@@ -84,10 +116,10 @@ export default function LeadsScreen() {
         clientId: client.id,
       });
 
-      Alert.alert('Success', 'Lead converted to client successfully!');
+      showAlert('Success', 'Lead converted to client successfully!');
     } catch (error) {
       console.error('Error converting lead:', error);
-      Alert.alert('Error', 'Failed to convert lead to client');
+      showAlert('Error', 'Failed to convert lead to client');
     }
   };
 
@@ -200,6 +232,14 @@ export default function LeadsScreen() {
         visible={showSubscriptionModal}
         onClose={() => setShowSubscriptionModal(false)}
         featureName={modalFeatureName}
+      />
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        onConfirm={alertConfig.onConfirm}
       />
 
       <ScrollView

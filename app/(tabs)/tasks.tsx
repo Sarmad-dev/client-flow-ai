@@ -6,7 +6,6 @@ import {
   ScrollView,
   Modal,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
@@ -27,6 +26,7 @@ import { SubscriptionModal } from '@/components/SubscriptionModal';
 import TaskSuggestions from '@/components/TaskSuggestions';
 import * as Notifications from 'expo-notifications';
 import { Trash2 } from 'lucide-react-native';
+import { CustomAlert } from '@/components/CustomAlert';
 
 export default function TasksScreen() {
   const { colors } = useTheme();
@@ -45,6 +45,17 @@ export default function TasksScreen() {
     setShowSubscriptionModal,
     modalFeatureName,
   } = useSubscriptionGuard();
+
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   const activeTasks = useMemo(
     () => tasks.filter((t) => t.status !== 'completed'),
@@ -104,23 +115,38 @@ export default function TasksScreen() {
     scheduleDueReminders();
   }, [tasks]);
 
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
+
   const handleDeleteTask = (taskId: string, taskTitle: string) => {
-    Alert.alert(
+    showAlert(
       'Delete Task',
       `Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteTask.mutate(taskId);
-            if (selectedTask?.id === taskId) {
-              setSelectedTask(null);
-            }
-          },
-        },
-      ]
+      () => {
+        deleteTask.mutate(taskId);
+        if (selectedTask?.id === taskId) {
+          setSelectedTask(null);
+        }
+        hideAlert();
+      }
     );
   };
 
@@ -155,6 +181,16 @@ export default function TasksScreen() {
           visible={showSubscriptionModal}
           onClose={() => setShowSubscriptionModal(false)}
           featureName={modalFeatureName}
+        />
+
+        <CustomAlert
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={hideAlert}
+          onConfirm={alertConfig.onConfirm}
+          confirmText="Delete"
+          cancelText="Cancel"
         />
 
         <ScrollView

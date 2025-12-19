@@ -37,38 +37,40 @@ export const CustomAlert = ({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-        <Text style={[styles.message, { color: colors.textSecondary }]}>
-          {message}
-        </Text>
+      <View style={styles.overlay}>
+        <View style={[styles.container, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.message, { color: colors.textSecondary }]}>
+            {message}
+          </Text>
 
-        <View style={styles.buttonContainer}>
-          {onConfirm && (
+          <View style={styles.buttonContainer}>
+            {onConfirm && (
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: colors.border }]}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.buttonText, { color: colors.primary }]}>
+                  {cancelText}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.border }]}
-              onPress={onClose}
+              style={[styles.button, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                onConfirm ? onConfirm() : onClose();
+              }}
               activeOpacity={0.8}
             >
-              <Text style={[styles.buttonText, { color: colors.primary }]}>
-                {cancelText}
+              <Text style={[styles.buttonText, { color: colors.surface }]}>
+                {confirmText}
               </Text>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              onConfirm ? onConfirm() : onClose();
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.buttonText, { color: colors.surface }]}>
-              {confirmText}
-            </Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -76,14 +78,27 @@ export const CustomAlert = ({
 };
 
 const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   container: {
-    alignSelf: 'center',
     width: width * 0.8,
-    height: 'auto',
+    maxWidth: 400,
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
-    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   title: {
     fontSize: 20,

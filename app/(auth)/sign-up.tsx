@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
   ScrollView,
   Button,
   Image,
+  Alert,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,6 +20,7 @@ import Animated, {
   withTiming,
   interpolate,
 } from 'react-native-reanimated';
+import { CustomAlert } from '@/components/CustomAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
 import { User, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react-native';
@@ -40,6 +41,16 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   // Animations
   const logoScale = useSharedValue(0);
@@ -66,25 +77,46 @@ export default function SignUpScreen() {
     transform: [{ scale: buttonScale.value }],
   }));
 
+  const showCustomAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideCustomAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
+
   const validateForm = () => {
     if (!fullName.trim()) {
-      Alert.alert('Error', 'Please enter your full name');
+      showCustomAlert('Error', 'Please enter your full name');
       return false;
     }
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      showCustomAlert('Error', 'Please enter your email address');
       return false;
     }
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      showCustomAlert('Error', 'Please enter a valid email address');
       return false;
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      showCustomAlert('Error', 'Password must be at least 6 characters long');
       return false;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showCustomAlert('Error', 'Passwords do not match');
       return false;
     }
     return true;
@@ -99,7 +131,7 @@ export default function SignUpScreen() {
     const { error } = await signUp(email.trim(), password, fullName.trim());
 
     if (error) {
-      Alert.alert('Signup Error', error.message);
+      showCustomAlert('Signup Error', error.message);
 
       showAlert({
         title: 'Error!',
@@ -111,7 +143,7 @@ export default function SignUpScreen() {
       return;
     }
 
-    // Alert.alert('User created', 'Please check your email to verify your account.');
+    // showCustomAlert('User created', 'Please check your email to verify your account.');
 
     showAlert({
       title: 'Success!',
@@ -129,7 +161,7 @@ export default function SignUpScreen() {
     const { error } = await signInWithGoogle();
 
     if (error) {
-      Alert.alert('Google Sign Up Failed', error.message);
+      showCustomAlert('Google Sign Up Failed', error.message);
     }
 
     setLoading(false);
@@ -401,6 +433,14 @@ export default function SignUpScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideCustomAlert}
+        onConfirm={alertConfig.onConfirm}
+      />
     </SafeAreaView>
   );
 }

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { MapView, Marker } from './PlatformMapView';
 import type { Region } from 'react-native-maps';
@@ -26,6 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { searchPlaces as searchPlacesApi, PlaceResult } from '@/lib/maps';
 import { useCreateClient } from '@/hooks/useClients';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CustomAlert } from '@/components/CustomAlert';
 
 interface ClientFormProps {
   visible: boolean;
@@ -68,6 +68,16 @@ export function ClientForm({
   });
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   const [isCreating, setIsCreating] = useState(false);
 

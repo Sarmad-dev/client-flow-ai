@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import {
@@ -28,6 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { CustomAlert } from '@/components/CustomAlert';
 import { profileSchema, ProfileFormData } from '@/lib/validation';
 
 const toneOptions = [
@@ -56,6 +56,16 @@ export default function ProfileScreen() {
   const updateProfile = useUpdateProfile();
   const [showTonePicker, setShowTonePicker] = useState(false);
   const [showTimezonePicker, setShowTimezonePicker] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   const {
     control,
@@ -104,13 +114,34 @@ export default function ProfileScreen() {
     }
   }, [profile, setValue]);
 
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
+
   const onSubmit = async (data: ProfileFormData) => {
     try {
       await updateProfile.mutateAsync(data);
-      Alert.alert('Success', 'Profile updated successfully!');
+      showAlert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      showAlert('Error', 'Failed to update profile. Please try again.');
     }
   };
 
@@ -608,6 +639,14 @@ export default function ProfileScreen() {
           </View>
         </View>
       )}
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        onConfirm={alertConfig.onConfirm}
+      />
     </SafeAreaView>
   );
 }

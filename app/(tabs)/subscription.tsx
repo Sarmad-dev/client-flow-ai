@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
@@ -19,6 +18,7 @@ import {
 } from '@/lib/subscriptionConfig';
 import { BillingPeriod, SubscriptionPlan } from '@/types/subscription';
 import { formatSubscriptionStatus } from '@/lib/subscriptionUtils';
+import { CustomAlert } from '@/components/CustomAlert';
 
 const { width } = Dimensions.get('window');
 
@@ -37,10 +37,41 @@ export default function SubscriptionScreen() {
   const { colors, isDark } = useTheme();
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [purchasing, setPurchasing] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
 
   const handlePurchase = async (plan: SubscriptionPlan) => {
     if (!offerings?.current) {
-      Alert.alert('Error', 'No subscription packages available');
+      showAlert('Error', 'No subscription packages available');
       return;
     }
 
@@ -53,7 +84,7 @@ export default function SubscriptionScreen() {
     );
 
     if (!pkg) {
-      Alert.alert('Error', 'Package not found');
+      showAlert('Error', 'Package not found');
       return;
     }
 
@@ -61,15 +92,15 @@ export default function SubscriptionScreen() {
     try {
       const success = await purchasePackage(pkg);
       if (success) {
-        Alert.alert(
+        showAlert(
           'Success!',
           `Welcome to ${plan.toUpperCase()}! You now have access to all premium features.`
         );
       } else {
-        Alert.alert('Error', 'Failed to complete purchase. Please try again.');
+        showAlert('Error', 'Failed to complete purchase. Please try again.');
       }
     } catch (error) {
-      Alert.alert('Error', 'An error occurred during purchase.');
+      showAlert('Error', 'An error occurred during purchase.');
     } finally {
       setPurchasing(false);
     }
@@ -79,12 +110,12 @@ export default function SubscriptionScreen() {
     try {
       const success = await restorePurchases();
       if (success) {
-        Alert.alert('Success', 'Purchases restored successfully!');
+        showAlert('Success', 'Purchases restored successfully!');
       } else {
-        Alert.alert('Info', 'No purchases found to restore.');
+        showAlert('Info', 'No purchases found to restore.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to restore purchases.');
+      showAlert('Error', 'Failed to restore purchases.');
     }
   };
 
@@ -396,6 +427,14 @@ export default function SubscriptionScreen() {
           Subscriptions auto-renew unless cancelled.
         </Text>
       </View>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        onConfirm={alertConfig.onConfirm}
+      />
     </ScrollView>
   );
 }

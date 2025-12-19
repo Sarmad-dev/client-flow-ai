@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -18,6 +17,7 @@ import {
   EnrichedMeeting,
 } from '@/hooks/useMeetings';
 import { MeetingFormData } from '@/lib/validation';
+import { CustomAlert } from '@/components/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MeetingDetailModal } from '@/components/MeetingDetailModal';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
@@ -40,6 +40,38 @@ export default function MeetingsScreen() {
     modalFeatureName,
   } = useSubscriptionGuard();
 
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
+
   const handleCreateMeeting = async (form: MeetingFormData) => {
     try {
       const payload = {
@@ -59,7 +91,7 @@ export default function MeetingsScreen() {
       setShowMeetingForm(false);
     } catch (error) {
       console.error('Error creating meeting:', error);
-      Alert.alert('Error', 'Failed to create meeting. Please try again.');
+      showAlert('Error', 'Failed to create meeting. Please try again.');
     }
   };
 
@@ -120,6 +152,14 @@ export default function MeetingsScreen() {
         visible={showSubscriptionModal}
         onClose={() => setShowSubscriptionModal(false)}
         featureName={modalFeatureName}
+      />
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        onConfirm={alertConfig.onConfirm}
       />
 
       <SafeAreaView

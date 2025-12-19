@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import Animated, {
@@ -17,6 +16,7 @@ import Animated, {
   withTiming,
   interpolate,
 } from 'react-native-reanimated';
+import { CustomAlert } from '@/components/CustomAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
 import {
@@ -36,6 +36,16 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   // Animations
   const logoScale = useSharedValue(0);
@@ -62,14 +72,35 @@ export default function ForgotPasswordScreen() {
     transform: [{ scale: buttonScale.value }],
   }));
 
+  const showAlert = (
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({
+      visible: false,
+      title: '',
+      message: '',
+    });
+  };
+
   const handleResetPassword = async () => {
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      showAlert('Error', 'Please enter your email address');
       return;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      showAlert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -79,7 +110,7 @@ export default function ForgotPasswordScreen() {
     const { error } = await resetPassword(email.trim());
 
     if (error) {
-      Alert.alert('Reset Failed', error.message);
+      showAlert('Reset Failed', error.message);
       buttonScale.value = withSpring(1);
     } else {
       setEmailSent(true);
@@ -265,6 +296,14 @@ export default function ForgotPasswordScreen() {
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        onConfirm={alertConfig.onConfirm}
+      />
     </SafeAreaView>
   );
 }
