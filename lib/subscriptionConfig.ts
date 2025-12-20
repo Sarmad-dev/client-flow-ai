@@ -321,11 +321,11 @@ export const REVENUECAT_CONFIG = {
   },
   // Product identifiers (must match App Store Connect / Google Play Console)
   products: {
-    basicMonthly: 'nexasuit_basic_monthly',
+    basicMonthly: 'basic_monthly:default',
     basicYearly: 'nexasuit_basic_yearly',
-    proMonthly: 'nexasuit_pro_monthly',
+    proMonthly: 'pro_monthly:default',
     proYearly: 'nexasuit_pro_yearly',
-    enterpriseMonthly: 'nexasuit_enterprise_monthly',
+    enterpriseMonthly: 'enterprise_monthly:default',
     enterpriseYearly: 'nexasuit_enterprise_yearly',
   },
 };

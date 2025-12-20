@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-} from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import Purchases, {
   PurchasesOfferings,
   PurchasesOffering,
@@ -22,19 +16,13 @@ import {
 } from '@/types/subscription';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  REVENUECAT_CONFIG,
-  getLimitsByPlan,
-  SUBSCRIPTION_TIERS,
-} from '@/lib/subscriptionConfig';
+import { REVENUECAT_CONFIG, getLimitsByPlan } from '@/lib/subscriptionConfig';
 import {
   isWithinLimit,
   getSubscriptionAnalytics,
   isInTrialPeriod,
   getTrialDaysRemaining,
-  canAccessFeature,
   getFeatureLimitMessage,
-  isUpgrade,
 } from '@/lib/subscriptionUtils';
 
 interface SubscriptionContextType {
