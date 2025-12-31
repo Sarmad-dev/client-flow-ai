@@ -1,45 +1,30 @@
 import { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const { colors } = useTheme();
+  const { session, loading } = useAuth();
 
   useEffect(() => {
-    const handleCallback = async () => {
-      try {
-        // Get the full URL with query parameters
-        const url = window.location.href;
-
-        // Exchange the code for a session
-        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-
-        if (error) {
-          console.error('Error exchanging code for session:', error);
-          router.replace('/(auth)/sign-in');
-          return;
-        }
-
-        if (data?.session) {
-          console.log('Successfully authenticated with Google');
-          // Redirect to main app
-          router.replace('/(tabs)');
-        } else {
-          console.error('No session returned');
-          router.replace('/(auth)/sign-in');
-        }
-      } catch (error) {
-        console.error('Callback handling error:', error);
+    // Wait for auth state to be determined
+    if (!loading) {
+      if (session) {
+        // User is authenticated, redirect to main app
+        console.log(
+          'OAuth callback: User authenticated, redirecting to main app'
+        );
+        router.replace('/(tabs)');
+      } else {
+        // No session found, redirect back to sign in
+        console.log('OAuth callback: No session found, redirecting to sign in');
         router.replace('/(auth)/sign-in');
       }
-    };
-
-    handleCallback();
-  }, [params]);
+    }
+  }, [session, loading, router]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

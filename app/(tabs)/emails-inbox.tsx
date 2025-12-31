@@ -9,15 +9,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import EmailComposer from '@/components/EmailComposer';
 import EmailThreadsView from '@/components/EmailThreadsView';
 import EmailThreadDetail from '@/components/EmailThreadDetail';
 import EmailErrorBoundary from '@/components/EmailErrorBoundary';
 import { useClients } from '@/hooks/useClients';
 import { useLeads } from '@/hooks/useLeads';
-import { useEmailThreads } from '@/hooks/useEmails';
 import { useLocalSearchParams } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
+import EmailComposer from '@/components/EmailComposer';
 
 export default function EmailsInboxScreen() {
   const { colors } = useTheme();

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
-  SafeAreaView,
   Linking,
   Alert,
 } from 'react-native';
@@ -27,23 +26,11 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { ClientEditModal } from '@/components/clients/ClientEditModal';
-
-interface Client {
-  id: string;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  whatsapp_phone: string;
-  address: string;
-  status: 'prospect' | 'active' | 'inactive' | 'closed';
-  notes: string;
-  tags: string[];
-  last_contact_date: string;
-  created_at: string;
-}
+import { ClientRecord } from '@/hooks/useClients';
+import ServerDecryptedEmailList from '@/components/ServerDecryptedEmailList';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import EmailComposer from './EmailComposer';
 
 interface ClientDetailViewProps {
   visible: boolean;
@@ -59,13 +46,11 @@ export function ClientDetailView({
   onClientUpdated,
 }: ClientDetailViewProps) {
   const { colors } = useTheme();
-  const { user } = useAuth();
-  const [client, setClient] = useState<Client | null>(null);
+  const [client, setClient] = useState<ClientRecord | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [meetings, setMeetings] = useState<any[]>([]);
-  const [emails, setEmails] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
 
   useEffect(() => {
     if (visible && clientId) {
@@ -75,8 +60,6 @@ export function ClientDetailView({
 
   const loadClientData = async () => {
     try {
-      setLoading(true);
-
       // Load client details
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
@@ -85,7 +68,7 @@ export function ClientDetailView({
         .single();
 
       if (clientError) throw clientError;
-      setClient(clientData);
+      setClient(clientData as ClientRecord);
 
       // Load related tasks
       const { data: tasksData, error: tasksError } = await supabase
@@ -106,21 +89,10 @@ export function ClientDetailView({
 
       if (meetingsError) throw meetingsError;
       setMeetings(meetingsData || []);
-
-      // Load email communications
-      const { data: emailsData, error: emailsError } = await supabase
-        .from('email_communications')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false });
-
-      if (emailsError) throw emailsError;
-      setEmails(emailsData || []);
     } catch (error) {
       console.error('Error loading client data:', error);
       Alert.alert('Error', 'Failed to load client details');
     } finally {
-      setLoading(false);
     }
   };
 
@@ -132,14 +104,14 @@ export function ClientDetailView({
 
   const handleWhatsAppCall = () => {
     if (client?.whatsapp_phone || client?.phone) {
-      const phone = client.whatsapp_phone || client.phone;
+      const phone = (client.whatsapp_phone || client.phone) as string;
       Linking.openURL(`https://wa.me/${phone.replace(/[^\d]/g, '')}`);
     }
   };
 
   const handleWhatsAppMessage = () => {
     if (client?.whatsapp_phone || client?.phone) {
-      const phone = client.whatsapp_phone || client.phone;
+      const phone = (client.whatsapp_phone || client.phone) as string;
       Linking.openURL(
         `https://wa.me/${phone.replace(/[^\d]/g, '')}?text=Hi ${client.name}!`
       );
@@ -148,7 +120,7 @@ export function ClientDetailView({
 
   const handleEmail = () => {
     if (client?.email) {
-      Linking.openURL(`mailto:${client.email}`);
+      setShowEmailComposer(true);
     }
   };
 
@@ -243,7 +215,7 @@ export function ClientDetailView({
                   <Text
                     style={[styles.company, { color: colors.textSecondary }]}
                   >
-                    {client.company}
+                    {client.company || 'No company'}
                   </Text>
                 </View>
                 <View style={styles.statusRow}>
@@ -505,59 +477,19 @@ export function ClientDetailView({
             <View style={styles.sectionHeader}>
               <Send size={20} color={colors.accent} strokeWidth={2} />
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Email History ({emails.length})
+                Email History
               </Text>
             </View>
-            {emails.length > 0 ? (
-              emails.slice(0, 5).map((email) => (
-                <View key={email.id} style={styles.emailItem}>
-                  <View style={styles.emailHeader}>
-                    <Text style={[styles.emailSubject, { color: colors.text }]}>
-                      {email.subject}
-                    </Text>
-                    <View
-                      style={[
-                        styles.emailDirection,
-                        {
-                          backgroundColor:
-                            email.direction === 'sent'
-                              ? colors.primary
-                              : colors.secondary,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.emailDirectionText}>
-                        {email.direction === 'sent' ? 'Sent' : 'Received'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text
-                    style={[styles.emailDate, { color: colors.textSecondary }]}
-                  >
-                    {new Date(email.created_at).toLocaleDateString()} at{' '}
-                    {new Date(email.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                  {email.body_text && (
-                    <Text
-                      style={[
-                        styles.emailPreview,
-                        { color: colors.textSecondary },
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {email.body_text}
-                    </Text>
-                  )}
-                </View>
-              ))
-            ) : (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No email history
-              </Text>
-            )}
+            <View style={{ height: 300 }}>
+              <ServerDecryptedEmailList
+                clientId={clientId}
+                limit={10}
+                onEmailPress={(email) => {
+                  // Handle email press - could open email detail view
+                  console.log('Email pressed:', email);
+                }}
+              />
+            </View>
           </View>
         </ScrollView>
 
@@ -572,6 +504,21 @@ export function ClientDetailView({
             onClientUpdated?.();
           }}
         />
+
+        {/* Email Composer Modal */}
+        <Modal
+          visible={showEmailComposer}
+          animationType="slide"
+          onRequestClose={() => setShowEmailComposer(false)}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+            <EmailComposer
+              clientId={clientId}
+              to={client?.email || undefined}
+              onSent={() => setShowEmailComposer(false)}
+            />
+          </SafeAreaView>
+        </Modal>
       </SafeAreaView>
     </Modal>
   );

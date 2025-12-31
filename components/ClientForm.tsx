@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { MapView, Marker } from './PlatformMapView';
 import type { Region } from 'react-native-maps';

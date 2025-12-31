@@ -6,11 +6,10 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { useEmailThreads } from '@/hooks/useEmails';
+import { useServerDecryptedEmailThreads } from '@/hooks/useServerDecryptedEmails';
 import { Mail, Search, MessageCircle, ChevronRight } from 'lucide-react-native';
 import EmailListSkeleton from './EmailListSkeleton';
 
@@ -33,7 +32,8 @@ export default function EmailThreadsView({
     error,
     refetch,
     isRefetching,
-  } = useEmailThreads();
+  } = useServerDecryptedEmailThreads();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
 

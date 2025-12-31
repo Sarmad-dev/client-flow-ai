@@ -2,7 +2,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
-  decryptEmailData,
+  encryptEmailData,
   isEncryptionSupported,
 } from '../_shared/encryption.ts';
 
@@ -17,8 +17,9 @@ type SendEmailRequest = {
   signature_used?: string | null;
   in_reply_to_message_id?: string | null;
   references?: string[] | null;
-  user_id?: string | null; // For scheduled/sequence emails
-  email_comm_id?: string | null; // For updating existing scheduled emails
+  user_id?: string | null;
+  email_comm_id?: string | null;
+  _encryption_method?: 'client' | 'server';
 };
 
 const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY') ?? '';
@@ -48,30 +49,22 @@ function badRequest(msg: string) {
 }
 
 function createUserEmail(userIdentifier: string, domain: string): string {
-  // Clean the user identifier to be email-safe
   const cleanIdentifier = userIdentifier
     .toLowerCase()
-    .replace(/[^a-z0-9.-]/g, '') // Remove non-alphanumeric chars except dots and hyphens
-    .replace(/\.+/g, '.') // Replace multiple dots with single dot
-    .replace(/^\.+|\.+$/g, '') // Remove leading/trailing dots
-    .substring(0, 30); // Limit length
+    .replace(/[^a-z0-9.-]/g, '')
+    .replace(/\.+/g, '.')
+    .replace(/^\.+|\.+$/g, '')
+    .substring(0, 30);
 
   return `${cleanIdentifier}@${domain}`;
-}
-
-function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
 }
 
 function getUserDisplayName(user: any, fromName?: string): string {
   if (fromName && fromName.trim()) return fromName.trim();
 
-  // Try to extract name from user metadata
   const fullName = user?.user_metadata?.full_name || user?.user_metadata?.name;
   if (fullName) return fullName;
 
-  // Fallback to email username or default
   const emailUsername = user?.email?.split('@')[0];
   if (emailUsername) {
     return emailUsername
@@ -117,7 +110,6 @@ async function sendWithSendGrid(args: {
     },
   };
 
-  // Add content
   if (args.text) {
     payload.content.push({
       type: 'text/plain',
@@ -131,24 +123,20 @@ async function sendWithSendGrid(args: {
     });
   }
 
-  // Add custom headers
   if (args.headers) {
     payload.headers = args.headers;
   } else {
     payload.headers = {};
   }
 
-  // Add threading headers for email replies
   if (args.in_reply_to_message_id) {
     payload.headers['In-Reply-To'] = args.in_reply_to_message_id;
   }
 
   if (args.references && args.references.length > 0) {
-    // References header should be a space-separated list of message IDs
     payload.headers['References'] = args.references.join(' ');
   }
 
-  // Add custom args for tracking
   if (args.customArgs) {
     payload.custom_args = args.customArgs;
   }
@@ -162,19 +150,12 @@ async function sendWithSendGrid(args: {
     body: JSON.stringify(payload),
   });
 
-  console.log('SendGrid response status:', res.status);
-  console.log(
-    'SendGrid response headers:',
-    Object.fromEntries(res.headers.entries())
-  );
-
   if (!res.ok) {
     const errorText = await res.text();
     console.error('SendGrid error response:', errorText);
     throw new Error(`SendGrid error (${res.status}): ${errorText}`);
   }
 
-  // SendGrid returns X-Message-Id header for tracking
   const messageId = res.headers.get('X-Message-Id') || crypto.randomUUID();
   return { id: messageId, message: 'Queued. Thank you.' };
 }
@@ -193,19 +174,30 @@ async function handler(req: Request): Promise<Response> {
     return new Response('Server not configured', { status: 500 });
   }
 
+  // Check if encryption is supported
+  if (!isEncryptionSupported()) {
+    return new Response(
+      JSON.stringify({
+        error: 'Server-side encryption not supported in this environment',
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return unauthorized();
   }
   const token = authHeader.replace('Bearer ', '');
 
-  // Check if this is a service role request
   const isServiceRole = token === SUPABASE_SERVICE_ROLE_KEY;
 
   let user: any = null;
 
   if (isServiceRole) {
-    // For service role requests (scheduled/sequence emails), get user from body
     const tempBody = await req.clone().json();
     if (tempBody.user_id) {
       const { data: userData, error: userError } =
@@ -218,7 +210,6 @@ async function handler(req: Request): Promise<Response> {
       return badRequest('user_id required for service role requests');
     }
   } else {
-    // For regular user requests, get user from token
     const {
       data: { user: tokenUser },
       error: userError,
@@ -240,86 +231,21 @@ async function handler(req: Request): Promise<Response> {
     return badRequest('Missing required fields: to, subject, (html or text)');
   }
 
-  // Create user-specific sender identifier
   const userIdentifier =
     body.from || user.email?.split('@')[0] || user.id.substring(0, 8);
   const senderEmail = createUserEmail(userIdentifier, SENDGRID_DOMAIN);
-
-  // Use provided email_comm_id for scheduled emails, or generate new one
   const emailCommId = body.email_comm_id || crypto.randomUUID();
   const isScheduledEmail = !!body.email_comm_id;
 
-  // For scheduled emails, decrypt the content if it's encrypted
-  let decryptedSubject = body.subject;
-  let decryptedHtml = body.html;
-  let decryptedText = body.text;
-
-  if (isScheduledEmail && isEncryptionSupported()) {
-    try {
-      // Check if content is encrypted (starts with srv_enc: prefix)
-      const needsDecryption =
-        body.subject?.startsWith('srv_enc:') ||
-        body.html?.startsWith('srv_enc:') ||
-        body.text?.startsWith('srv_enc:');
-
-      if (needsDecryption) {
-        console.log(
-          JSON.stringify({
-            level: 'info',
-            message: 'Decrypting scheduled email content',
-            emailId: emailCommId,
-            userId: user.id,
-            timestamp: new Date().toISOString(),
-          })
-        );
-
-        const decryptedData = await decryptEmailData(
-          {
-            subject: body.subject,
-            body_html: body.html,
-            body_text: body.text,
-          },
-          user.id
-        );
-
-        decryptedSubject = decryptedData.subject || body.subject;
-        decryptedHtml = decryptedData.body_html || body.html;
-        decryptedText = decryptedData.body_text || body.text;
-
-        console.log(
-          JSON.stringify({
-            level: 'info',
-            message: 'Successfully decrypted scheduled email content',
-            emailId: emailCommId,
-            userId: user.id,
-            timestamp: new Date().toISOString(),
-          })
-        );
-      }
-    } catch (decryptError) {
-      console.error(
-        JSON.stringify({
-          level: 'error',
-          message: 'Failed to decrypt scheduled email content',
-          error: decryptError?.message || String(decryptError),
-          emailId: emailCommId,
-          userId: user.id,
-          timestamp: new Date().toISOString(),
-        })
-      );
-      // Continue with original content if decryption fails
-    }
-  }
-
   try {
-    // Check suppression list to prevent sending to suppressed addresses
-    // Addresses are automatically added to suppression list on hard bounces
+    // Check suppression list
     const { data: suppress } = await supabaseAdmin
       .from('suppression_list')
       .select('id, reason')
       .eq('user_id', user.id)
       .eq('email', body.to.toLowerCase())
       .maybeSingle();
+
     if (suppress) {
       console.log(
         JSON.stringify({
@@ -336,6 +262,35 @@ async function handler(req: Request): Promise<Response> {
       );
     }
 
+    // Encrypt email content using shared encryption utility
+    console.log('Performing server-side encryption for user:', user.id);
+
+    let encryptedData;
+    try {
+      encryptedData = await encryptEmailData(
+        {
+          subject: body.subject,
+          body_text: body.text || null,
+          body_html: body.html || null,
+        },
+        user.id
+      );
+
+      console.log('Encrypted Data: ', encryptedData);
+    } catch (encryptionError) {
+      console.error('Encryption failed:', encryptionError);
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to encrypt email content',
+          details: encryptionError.message,
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     console.log('Attempting to send email via SendGrid...');
     let sg;
     try {
@@ -343,9 +298,9 @@ async function handler(req: Request): Promise<Response> {
         to: body.to,
         fromIdentifier: userIdentifier,
         fromName: body.from,
-        subject: decryptedSubject,
-        html: decryptedHtml,
-        text: decryptedText,
+        subject: body.subject, // Send original subject to SendGrid for delivery
+        html: body.html, // Send original content to SendGrid for delivery
+        text: body.text,
         headers: {
           'X-Client-Email-Id': emailCommId,
         },
@@ -356,7 +311,6 @@ async function handler(req: Request): Promise<Response> {
           lead_id: body.lead_id || '',
         },
         user,
-
         in_reply_to_message_id: body.in_reply_to_message_id,
         references: body.references,
       });
@@ -375,13 +329,9 @@ async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // Update or insert email communication record
-    // NOTE: For scheduled emails, content may be encrypted and is decrypted before sending
-    // For regular emails, content is encrypted client-side before being sent to this function
-    // The body.text and body.html should already be encrypted when they reach this point
+    // Store encrypted content in database
     try {
       if (isScheduledEmail) {
-        // Update existing scheduled email record
         const { error: updateError } = await supabaseAdmin
           .from('email_communications')
           .update({
@@ -400,7 +350,6 @@ async function handler(req: Request): Promise<Response> {
           console.log('Scheduled email record updated successfully');
         }
       } else {
-        // Insert new email record with encrypted content
         const { error: insertError } = await supabaseAdmin
           .from('email_communications')
           .insert({
@@ -410,9 +359,9 @@ async function handler(req: Request): Promise<Response> {
             lead_id: body.lead_id ?? null,
             sendgrid_message_id: sg.id,
             direction: 'sent',
-            subject: body.subject, // Keep original (encrypted) content for storage
-            body_text: body.text ?? null, // Keep original (encrypted) content for storage
-            body_html: body.html ?? null, // Keep original (encrypted) content for storage
+            subject: encryptedData.subject, // Store encrypted subject
+            body_text: encryptedData.body_text, // Store encrypted text
+            body_html: encryptedData.body_html, // Store encrypted HTML
             sender_email: senderEmail,
             recipient_email: body.to,
             status: 'sent',
@@ -425,37 +374,35 @@ async function handler(req: Request): Promise<Response> {
           console.error('Database insertion error:', insertError);
         } else {
           console.log(
-            'Email communication record inserted successfully (content encrypted)'
+            'Email communication record inserted successfully (server-side encrypted)'
           );
         }
       }
     } catch (dbError) {
       console.error('Database operation failed:', dbError);
-      // Log the error but don't fail the request since email was sent successfully
     }
 
-    // Return success since email was sent successfully
     return new Response(
       JSON.stringify({
         id: sg.id,
         emailId: emailCommId,
         messageId: sg.id,
-        // Don't return encrypted content in response for security
         sender_email: senderEmail,
         recipient_email: body.to,
         status: 'sent',
+        encryption_method: 'server',
       }),
       {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }
     );
-  } catch (sendGridError) {
-    console.error('SendGrid error:', sendGridError);
+  } catch (error) {
+    console.error('Email send error:', error);
     return new Response(
       JSON.stringify({
         error: 'Failed to send email',
-        details: String(sendGridError?.message ?? sendGridError),
+        details: String(error?.message ?? error),
       }),
       {
         status: 500,

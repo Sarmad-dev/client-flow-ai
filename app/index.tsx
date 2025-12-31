@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +24,7 @@ export default function Index() {
         .from('user_onboarding')
         .select('completed')
         .eq('user_id', user?.id)
+        .eq('completed', true)
         .maybeSingle();
 
       if (error) {

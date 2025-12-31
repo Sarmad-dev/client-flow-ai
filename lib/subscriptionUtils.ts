@@ -64,10 +64,6 @@ export const getSubscriptionAnalytics = (
       currentUsage.emailsSent,
       limits.maxEmailsPerClient + limits.maxEmailsPerLead
     ),
-    storage: calculateUsagePercentage(
-      currentUsage.storageUsedMB / 1024,
-      limits.maxStorageGB
-    ),
   };
 
   // Calculate days until renewal
@@ -274,7 +270,7 @@ export const comparePlans = (
   plan1: SubscriptionPlan,
   plan2: SubscriptionPlan
 ): number => {
-  const order: SubscriptionPlan[] = ['free', 'basic', 'pro', 'enterprise'];
+  const order: SubscriptionPlan[] = ['free', 'pro'];
   return order.indexOf(plan1) - order.indexOf(plan2);
 };
 

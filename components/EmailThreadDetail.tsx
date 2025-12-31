@@ -10,7 +10,10 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { useThreadMessages, EmailRecord } from '@/hooks/useEmails';
+import {
+  useServerDecryptedThreadMessages,
+  EmailCommunication,
+} from '@/hooks/useServerDecryptedEmails';
 import {
   Mail,
   ChevronDown,
@@ -22,12 +25,13 @@ import {
 } from 'lucide-react-native';
 import { MessageContent } from './MessageContent';
 import InlineReplyComposer from './InlineReplyComposer';
+import { useThreadMessages, EmailRecord } from '@/hooks/useEmails';
 
 interface EmailThreadDetailProps {
   counterpartyEmail: string;
   displayName: string | null;
   onBack: () => void;
-  onReply?: (email: EmailRecord) => void;
+  onReply?: (email: EmailCommunication) => void;
 }
 
 export default function EmailThreadDetail({
@@ -41,14 +45,13 @@ export default function EmailThreadDetail({
     data: messages = [],
     isLoading,
     error,
-  } = useThreadMessages(counterpartyEmail);
+  } = useServerDecryptedThreadMessages(counterpartyEmail);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(
     new Set()
   );
   const [showReplyComposer, setShowReplyComposer] = useState(false);
-  const [replyToMessage, setReplyToMessage] = useState<EmailRecord | null>(
-    null
-  );
+  const [replyToMessage, setReplyToMessage] =
+    useState<EmailCommunication | null>(null);
 
   // Auto-expand the most recent message
   React.useEffect(() => {

@@ -22,7 +22,7 @@ import {
   actions,
 } from 'react-native-pell-rich-editor';
 import { useTheme } from '@/hooks/useTheme';
-import { useSendEmail, useEnhanceEmail } from '@/hooks/useEmails';
+import { useEnhanceEmail } from '@/hooks/useEmails';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import {
   useEmailDraft,
@@ -30,7 +30,6 @@ import {
   useDeleteDraft,
 } from '@/hooks/useEmailDrafts';
 import { useDefaultSignature } from '@/hooks/useEmailSignatures';
-import { useScheduleEmail } from '@/hooks/useScheduledEmails';
 import { useAlert } from '@/contexts/CustomAlertContext';
 import { PlatformDateTimePicker } from '@/components/PlatformDateTimePicker';
 import {
@@ -47,6 +46,7 @@ import {
   File,
   Clock,
 } from 'lucide-react-native';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EmailComposerProps {
   to?: string;
@@ -120,10 +120,9 @@ export default function EmailComposer({
 }: EmailComposerProps) {
   const { colors } = useTheme();
   const { showAlert } = useAlert();
-  const sendEmail = useSendEmail();
+  const { user, session } = useAuth();
   const enhanceEmail = useEnhanceEmail();
   const deleteDraft = useDeleteDraft();
-  const scheduleEmail = useScheduleEmail();
   const { data: templates = [] } = useEmailTemplates();
   const { data: loadedDraft } = useEmailDraft(draftId);
   const { data: defaultSignature } = useDefaultSignature();
@@ -148,6 +147,8 @@ export default function EmailComposer({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const recipientDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -543,7 +544,7 @@ export default function EmailComposer({
   };
 
   const handleSend = async () => {
-    if (!canSend) return;
+    if (!canSend || !user || !session?.access_token) return;
 
     // Validate attachments before sending
     if (attachments.length > 5) {
@@ -563,66 +564,71 @@ export default function EmailComposer({
       return;
     }
 
-    // Validate individual file sizes
-    const oversizedFiles = attachments.filter(
-      (a) => (a.size || 0) > 10 * 1024 * 1024
-    );
-    if (oversizedFiles.length > 0) {
-      showAlert({
-        title: 'File Too Large',
-        message: `${
-          oversizedFiles[0].name || 'A file'
-        } exceeds the 10MB limit per file.`,
-      });
-      return;
-    }
-
-    const inlineImagesHtml = attachments
-      .map(
-        (a) =>
-          `<div style="margin-top:8px"><img src="data:${a.mime};base64,${a.base64}" style="max-width:100%" /></div>`
-      )
-      .join('');
-    const cleanedTextFromHtml = (html: string) =>
-      html
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    const htmlFromPlain = `<div><p>${(body || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br/>')}</p></div>`;
-
-    const composedHtml =
-      (richHtml && richHtml.trim().length > 0 ? richHtml : htmlFromPlain) +
-      inlineImagesHtml;
-
-    const plainText =
-      richHtml && richHtml.trim().length > 0
-        ? cleanedTextFromHtml(richHtml)
-        : body;
-    setBody(plainText);
+    setIsSending(true);
 
     try {
-      const result = await sendEmail.mutateAsync({
-        to: recipient,
-        subject: subject || '(no subject)',
-        html: composedHtml,
-        text: plainText,
-        client_id: clientId,
-        signature_used: signatureUsed,
-        in_reply_to_message_id: inReplyToMessageId,
-        references: references,
-      });
+      const inlineImagesHtml = attachments
+        .map(
+          (a) =>
+            `<div style="margin-top:8px"><img src="data:${a.mime};base64,${a.base64}" style="max-width:100%" /></div>`
+        )
+        .join('');
 
+      const cleanedTextFromHtml = (html: string) =>
+        html
+          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const htmlFromPlain = `<div><p>${(body || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br/>')}</p></div>`;
+
+      const composedHtml =
+        (richHtml && richHtml.trim().length > 0 ? richHtml : htmlFromPlain) +
+        inlineImagesHtml;
+
+      const plainText =
+        richHtml && richHtml.trim().length > 0
+          ? cleanedTextFromHtml(richHtml)
+          : body;
+
+      // Send via encrypted endpoint
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send-email-encrypted`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: recipient,
+            subject: subject || '(no subject)',
+            html: composedHtml,
+            text: plainText,
+            client_id: clientId,
+            lead_id: leadId,
+            signature_used: signatureUsed,
+            in_reply_to_message_id: inReplyToMessageId,
+            references: references,
+            _encryption_method: 'server',
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send email');
+      }
       // Delete draft after successful send
       if (currentDraftId) {
         try {
@@ -633,16 +639,12 @@ export default function EmailComposer({
         }
       }
 
-      // Show success message with details
-      const recipientName = suggestedRecipients.find(
-        (r) => r.email.toLowerCase() === recipient.toLowerCase()
-      )?.name;
-
+      // Show success message
       showAlert({
         title: '✓ Email Sent Successfully',
-        message: `Your email${
+        message: `Your encrypted email${
           subject ? ` "${subject}"` : ''
-        } has been sent to ${recipientName || recipient}.${
+        } has been sent to ${recipient}.${
           attachments.length > 0
             ? `\n\nAttachments: ${attachments.length} file${
                 attachments.length > 1 ? 's' : ''
@@ -671,9 +673,7 @@ export default function EmailComposer({
     } catch (error) {
       console.error('Failed to send email:', error);
 
-      // Provide specific error messages
       let errorMessage = 'Failed to send email. Please try again.';
-
       if (error instanceof Error) {
         if (error.message.includes('network')) {
           errorMessage =
@@ -691,11 +691,13 @@ export default function EmailComposer({
         message: errorMessage,
         confirmText: 'OK',
       });
+    } finally {
+      setIsSending(false);
     }
   };
 
   const handleSchedule = async (selectedDate: Date) => {
-    if (!canSend) return;
+    if (!canSend || !user || !session?.access_token) return;
 
     // Validate selectedDate
     if (
@@ -710,84 +712,70 @@ export default function EmailComposer({
       return;
     }
 
-    // Validate attachments before scheduling
-    if (attachments.length > 5) {
-      showAlert({
-        title: 'Too Many Attachments',
-        message: 'You can attach a maximum of 5 files per email.',
-      });
-      return;
-    }
-
-    if (totalAttachmentSize > 10 * 1024 * 1024) {
-      showAlert({
-        title: 'Attachments Too Large',
-        message:
-          'Total attachment size cannot exceed 10MB. Please remove some files.',
-      });
-      return;
-    }
-
-    // Validate individual file sizes
-    const oversizedFiles = attachments.filter(
-      (a) => (a.size || 0) > 10 * 1024 * 1024
-    );
-    if (oversizedFiles.length > 0) {
-      showAlert({
-        title: 'File Too Large',
-        message: `${
-          oversizedFiles[0].name || 'A file'
-        } exceeds the 10MB limit per file.`,
-      });
-      return;
-    }
-
-    const inlineImagesHtml = attachments
-      .map(
-        (a) =>
-          `<div style="margin-top:8px"><img src="data:${a.mime};base64,${a.base64}" style="max-width:100%" /></div>`
-      )
-      .join('');
-    const cleanedTextFromHtml = (html: string) =>
-      html
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    const htmlFromPlain = `<div><p>${(body || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br/>')}</p></div>`;
-
-    const composedHtml =
-      (richHtml && richHtml.trim().length > 0 ? richHtml : htmlFromPlain) +
-      inlineImagesHtml;
-
-    const plainText =
-      richHtml && richHtml.trim().length > 0
-        ? cleanedTextFromHtml(richHtml)
-        : body;
-    setBody(plainText);
+    setIsScheduling(true);
 
     try {
-      await scheduleEmail.mutateAsync({
-        to: recipient,
-        subject: subject || '(no subject)',
-        html: composedHtml,
-        text: plainText,
-        scheduled_at: selectedDate.toISOString(),
-        client_id: clientId,
-        lead_id: leadId,
-        signature_used: signatureUsed,
-      });
+      const inlineImagesHtml = attachments
+        .map(
+          (a) =>
+            `<div style="margin-top:8px"><img src="data:${a.mime};base64,${a.base64}" style="max-width:100%" /></div>`
+        )
+        .join('');
 
+      const cleanedTextFromHtml = (html: string) =>
+        html
+          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const htmlFromPlain = `<div><p>${(body || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br/>')}</p></div>`;
+
+      const composedHtml =
+        (richHtml && richHtml.trim().length > 0 ? richHtml : htmlFromPlain) +
+        inlineImagesHtml;
+
+      const plainText =
+        richHtml && richHtml.trim().length > 0
+          ? cleanedTextFromHtml(richHtml)
+          : body;
+
+      // Schedule via encrypted endpoint (would need to be implemented)
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/schedule-email-encrypted`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: recipient,
+            subject: subject || '(no subject)',
+            html: composedHtml,
+            text: plainText,
+            scheduled_at: selectedDate.toISOString(),
+            client_id: clientId,
+            lead_id: leadId,
+            signature_used: signatureUsed,
+            _encryption_method: 'server',
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to schedule email');
+      }
       // Delete draft after successful schedule
       if (currentDraftId) {
         try {
@@ -797,11 +785,6 @@ export default function EmailComposer({
           console.error('Failed to delete draft after schedule:', error);
         }
       }
-
-      // Show success message with details
-      const recipientName = suggestedRecipients.find(
-        (r) => r.email.toLowerCase() === recipient.toLowerCase()
-      )?.name;
 
       const scheduledDateStr = selectedDate.toLocaleString(undefined, {
         weekday: 'short',
@@ -813,11 +796,9 @@ export default function EmailComposer({
 
       showAlert({
         title: '✓ Email Scheduled',
-        message: `Your email${
+        message: `Your encrypted email${
           subject ? ` "${subject}"` : ''
-        } has been scheduled to send to ${
-          recipientName || recipient
-        } on ${scheduledDateStr}.`,
+        } has been scheduled to send to ${recipient} on ${scheduledDateStr}.`,
         confirmText: 'OK',
       });
 
@@ -842,9 +823,7 @@ export default function EmailComposer({
     } catch (error) {
       console.error('Failed to schedule email:', error);
 
-      // Provide specific error messages
       let errorMessage = 'Failed to schedule email. Please try again.';
-
       if (error instanceof Error) {
         if (error.message.includes('future')) {
           errorMessage = 'Please select a date and time in the future.';
@@ -860,8 +839,10 @@ export default function EmailComposer({
         title: 'Schedule Failed',
         message: errorMessage,
         confirmText: 'OK',
-        cancelText: 'Cancel',
       });
+    } finally {
+      setIsScheduling(false);
+      setShowSchedulePicker(false);
     }
   };
 
@@ -1564,16 +1545,11 @@ export default function EmailComposer({
               {
                 borderColor: colors.border,
                 backgroundColor: colors.surface,
-                opacity:
-                  isSaving || sendEmail.isPending || scheduleEmail.isPending
-                    ? 0.5
-                    : 1,
+                opacity: isSaving || isSending || isScheduling ? 0.5 : 1,
               },
             ]}
             onPress={handleSaveDraft}
-            disabled={
-              isSaving || sendEmail.isPending || scheduleEmail.isPending
-            }
+            disabled={isSaving || isSending || isScheduling}
           >
             {isSaving ? (
               <ActivityIndicator size={18} color={colors.textSecondary} />
@@ -1591,18 +1567,13 @@ export default function EmailComposer({
               {
                 borderColor: colors.border,
                 backgroundColor: colors.surface,
-                opacity:
-                  !canSend || sendEmail.isPending || scheduleEmail.isPending
-                    ? 0.5
-                    : 1,
+                opacity: !canSend || isSending || isScheduling ? 0.5 : 1,
               },
             ]}
             onPress={() => setShowSchedulePicker(true)}
-            disabled={
-              !canSend || sendEmail.isPending || scheduleEmail.isPending
-            }
+            disabled={!canSend || isSending || isScheduling}
           >
-            {scheduleEmail.isPending ? (
+            {isScheduling ? (
               <ActivityIndicator size={18} color={colors.textSecondary} />
             ) : (
               <Clock size={18} color={colors.textSecondary} />
@@ -1617,23 +1588,18 @@ export default function EmailComposer({
               styles.sendButton,
               {
                 backgroundColor:
-                  !canSend || sendEmail.isPending || scheduleEmail.isPending
+                  !canSend || isSending || isScheduling
                     ? colors.surface
                     : colors.primary,
-                borderWidth:
-                  !canSend || sendEmail.isPending || scheduleEmail.isPending
-                    ? 1
-                    : 0,
+                borderWidth: !canSend || isSending || isScheduling ? 1 : 0,
                 borderColor: colors.border,
                 flex: 1,
               },
             ]}
             onPress={handleSend}
-            disabled={
-              sendEmail.isPending || scheduleEmail.isPending || !canSend
-            }
+            disabled={isSending || isScheduling || !canSend}
           >
-            {sendEmail.isPending ? (
+            {isSending ? (
               <>
                 <ActivityIndicator color={colors.primary} size={18} />
                 <Text style={[styles.sendText, { color: colors.primary }]}>

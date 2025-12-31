@@ -1,4 +1,4 @@
-export type SubscriptionPlan = 'free' | 'basic' | 'pro' | 'enterprise';
+export type SubscriptionPlan = 'free' | 'pro';
 export type BillingPeriod = 'monthly' | 'yearly';
 export type SubscriptionStatus =
   | 'active'
@@ -16,7 +16,6 @@ export interface SubscriptionLimits {
   maxTeamMembers: number;
   maxAutomationRules: number;
   maxEmailTemplates: number;
-  maxStorageGB: number;
   meetingsEnabled: boolean;
   analyticsEnabled: boolean;
   aiSuggestionsEnabled: boolean;
@@ -74,7 +73,6 @@ export interface UserSubscription {
     teamMembers: number;
     automationRules: number;
     emailTemplates: number;
-    storageUsedMB: number;
   };
   revenueCatInfo?: {
     customerId: string;
@@ -124,7 +122,6 @@ export interface SubscriptionAnalytics {
     clients: number;
     tasks: number;
     emails: number;
-    storage: number;
   };
   daysUntilRenewal?: number;
   recommendedUpgrade?: SubscriptionPlan;

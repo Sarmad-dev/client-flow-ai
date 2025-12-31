@@ -16,9 +16,14 @@ import {
   SUBSCRIPTION_TIERS,
   getYearlySavingsPercentage,
 } from '@/lib/subscriptionConfig';
-import { BillingPeriod, SubscriptionPlan } from '@/types/subscription';
+import {
+  BillingPeriod,
+  SubscriptionPlan,
+  SubscriptionTier,
+} from '@/types/subscription';
 import { formatSubscriptionStatus } from '@/lib/subscriptionUtils';
 import { CustomAlert } from '@/components/CustomAlert';
+import { PurchasesPackage } from 'react-native-purchases';
 
 const { width } = Dimensions.get('window');
 
@@ -79,8 +84,9 @@ export default function SubscriptionScreen() {
     const productId = `nexasuit_${plan}_${
       billingPeriod === 'yearly' ? 'yearly' : 'monthly'
     }`;
+
     const pkg = offerings.current.availablePackages.find(
-      (p) => p.product.identifier === productId
+      (p) => p.product.identifier
     );
 
     if (!pkg) {
@@ -119,7 +125,138 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const renderPlanCard = (tier: (typeof SUBSCRIPTION_TIERS)[0]) => {
+  const renderPlanCard = (pkg: PurchasesPackage) => {
+    const tier = SUBSCRIPTION_TIERS.find((t) =>
+      pkg.product.identifier.includes(t.plan)
+    );
+
+    if (!tier) return null;
+
+    const isCurrentPlan = userSubscription.plan === tier.plan;
+    const price = pkg.product.price;
+    const priceString = pkg.product.priceString;
+
+    // Determine if this is yearly or monthly based on product identifier
+    const isYearly = pkg.product.identifier.includes('yearly');
+    const savings = isYearly ? getYearlySavingsPercentage(tier) : 0;
+
+    return (
+      <View
+        key={pkg.product.identifier}
+        style={[
+          styles.planCard,
+          { backgroundColor: colors.surface },
+          isCurrentPlan && styles.currentPlanCard,
+          tier.popular && styles.popularPlanCard,
+        ]}
+      >
+        {tier.popular && (
+          <View
+            style={[styles.popularBadge, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+          </View>
+        )}
+
+        {isCurrentPlan && (
+          <View
+            style={[styles.currentBadge, { backgroundColor: colors.success }]}
+          >
+            <Ionicons name="checkmark-circle" size={16} color="white" />
+            <Text style={styles.currentBadgeText}>Current Plan</Text>
+          </View>
+        )}
+
+        <Text style={[styles.planName, { color: colors.text }]}>
+          {tier.displayName}
+        </Text>
+        <Text style={[styles.planDescription, { color: colors.textSecondary }]}>
+          {tier.description}
+        </Text>
+
+        <View style={styles.priceContainer}>
+          <Text style={[styles.price, { color: colors.text }]}>
+            {priceString}
+          </Text>
+          <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>
+            /{isYearly ? 'year' : 'month'}
+          </Text>
+        </View>
+
+        {savings > 0 && (
+          <View
+            style={[
+              styles.savingsBadge,
+              { backgroundColor: colors.success + '20' },
+            ]}
+          >
+            <Text style={[styles.savingsText, { color: colors.success }]}>
+              Save {savings}%
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.featuresContainer}>
+          {tier.features.map((feature, index) => (
+            <View key={index} style={styles.featureRow}>
+              <Ionicons name="checkmark" size={18} color={colors.primary} />
+              <Text style={[styles.featureText, { color: colors.text }]}>
+                {feature}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {!isCurrentPlan && tier.plan !== 'free' && (
+          <TouchableOpacity
+            style={[
+              styles.selectButton,
+              {
+                backgroundColor: tier.popular ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={() => handlePurchase(tier.plan)}
+            disabled={purchasing || isLoading}
+          >
+            {purchasing ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text
+                style={[
+                  styles.selectButtonText,
+                  { color: tier.popular ? 'white' : colors.text },
+                ]}
+              >
+                {tier.trialDays
+                  ? `Start ${tier.trialDays}-Day Trial`
+                  : 'Select Plan'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {isCurrentPlan && (
+          <View
+            style={[
+              styles.currentPlanButton,
+              { backgroundColor: colors.border },
+            ]}
+          >
+            <Text
+              style={[
+                styles.currentPlanButtonText,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Active
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderLocalTierCard = (tier: SubscriptionTier) => {
     const isCurrentPlan = userSubscription.plan === tier.plan;
     const price =
       billingPeriod === 'yearly' ? tier.yearlyPrice : tier.monthlyPrice;
@@ -201,23 +338,24 @@ export default function SubscriptionScreen() {
                 backgroundColor: tier.popular ? colors.primary : colors.border,
               },
             ]}
-            onPress={() => handlePurchase(tier.plan)}
+            onPress={() =>
+              showAlert(
+                'Coming Soon',
+                'In-app purchases will be available soon!'
+              )
+            }
             disabled={purchasing || isLoading}
           >
-            {purchasing ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text
-                style={[
-                  styles.selectButtonText,
-                  { color: tier.popular ? 'white' : colors.text },
-                ]}
-              >
-                {tier.trialDays
-                  ? `Start ${tier.trialDays}-Day Trial`
-                  : 'Select Plan'}
-              </Text>
-            )}
+            <Text
+              style={[
+                styles.selectButtonText,
+                { color: tier.popular ? 'white' : colors.text },
+              ]}
+            >
+              {tier.trialDays
+                ? `Start ${tier.trialDays}-Day Trial`
+                : 'Select Plan'}
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -344,7 +482,7 @@ export default function SubscriptionScreen() {
       </LinearGradient>
 
       {/* Usage Stats */}
-      {userSubscription.plan !== 'enterprise' && renderUsageStats()}
+      {renderUsageStats()}
 
       {/* Billing Period Toggle */}
       <View style={styles.billingToggleContainer}>
@@ -404,7 +542,18 @@ export default function SubscriptionScreen() {
 
       {/* Plan Cards */}
       <View style={styles.plansContainer}>
-        {SUBSCRIPTION_TIERS.map((tier) => renderPlanCard(tier))}
+        {offerings?.current?.availablePackages &&
+        offerings.current.availablePackages.length > 0
+          ? // Show packages from RevenueCat
+            offerings.current.availablePackages
+              .filter((pkg) => {
+                // Filter packages based on selected billing period
+                const isYearly = pkg.product.identifier.includes('yearly');
+                return billingPeriod === 'yearly' ? isYearly : !isYearly;
+              })
+              .map((pkg) => renderPlanCard(pkg))
+          : // Fallback to local tiers if no packages available
+            SUBSCRIPTION_TIERS.map((tier) => renderLocalTierCard(tier))}
       </View>
 
       {/* Restore Purchases */}

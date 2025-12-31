@@ -17,22 +17,31 @@ import Animated, {
   withTiming,
   interpolate,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router } from 'expo-router';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '@/contexts/CustomAlertContext';
+import { supabase } from '@/lib/supabase';
+import {
+  GoogleSigninButton,
+  GoogleSignin,
+  isSuccessResponse,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
+// Removed @react-native-google-signin/google-signin - using Expo's OAuth instead
 
 export default function SignInScreen() {
   const { colors } = useTheme();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, user, session } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { showAlert } = useAlert();
+
+  // No Google configuration needed - handled by Expo OAuth
 
   // Animations
   const logoScale = useSharedValue(0);
@@ -44,6 +53,13 @@ export default function SignInScreen() {
     logoScale.value = withSpring(1, { damping: 15, stiffness: 150 });
     formOpacity.value = withTiming(1, { duration: 800 });
   }, []);
+
+  // Handle automatic redirect when user is already authenticated
+  React.useEffect(() => {
+    if (user && session) {
+      router.replace('/(tabs)');
+    }
+  }, [user, session]);
 
   const logoAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: logoScale.value }],
@@ -89,6 +105,8 @@ export default function SignInScreen() {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    buttonScale.value = withSpring(0.95);
+
     const { error } = await signInWithGoogle();
 
     if (error) {
@@ -98,8 +116,14 @@ export default function SignInScreen() {
       });
     }
 
+    buttonScale.value = withSpring(1);
     setLoading(false);
   };
+
+  // Don't render the form if user is already authenticated
+  if (user && session) {
+    return null;
+  }
 
   return (
     <SafeAreaView
@@ -258,7 +282,10 @@ export default function SignInScreen() {
             <TouchableOpacity
               style={[
                 styles.googleButton,
-                { backgroundColor: colors.surface, borderColor: colors.border },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                },
               ]}
               onPress={handleGoogleSignIn}
               disabled={loading}
@@ -268,7 +295,7 @@ export default function SignInScreen() {
                 <Text style={styles.googleIconText}>G</Text>
               </View>
               <Text style={[styles.googleButtonText, { color: colors.text }]}>
-                Continue with Google
+                Sign in with Google
               </Text>
             </TouchableOpacity>
 

@@ -27,10 +27,17 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAlert } from '@/contexts/CustomAlertContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  GoogleSignin,
+  GoogleSigninButton,
+  isSuccessResponse,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
+import { supabase } from '@/lib/supabase';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, user, session } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const { showAlert } = useAlert();
@@ -50,6 +57,10 @@ export default function SignUpScreen() {
     message: '',
   });
 
+  GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+  });
+
   // Animations
   const logoScale = useSharedValue(0);
   const formOpacity = useSharedValue(0);
@@ -59,6 +70,13 @@ export default function SignUpScreen() {
     logoScale.value = withSpring(1, { damping: 15, stiffness: 150 });
     formOpacity.value = withTiming(1, { duration: 800 });
   }, []);
+
+  // Handle automatic redirect when user is already authenticated
+  React.useEffect(() => {
+    if (user && session) {
+      router.replace('/(tabs)');
+    }
+  }, [user, session]);
 
   const logoAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: logoScale.value }],
@@ -154,16 +172,10 @@ export default function SignUpScreen() {
     setLoading(false);
   };
 
-  const handleGoogleSignUp = async () => {
-    setLoading(true);
-    const { error } = await signInWithGoogle();
-
-    if (error) {
-      showCustomAlert('Google Sign Up Failed', error.message);
-    }
-
-    setLoading(false);
-  };
+  // Don't render the form if user is already authenticated
+  if (user && session) {
+    return null;
+  }
 
   return (
     <SafeAreaView
@@ -390,7 +402,7 @@ export default function SignUpScreen() {
               </View>
 
               {/* Google Sign Up */}
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 style={[
                   styles.googleButton,
                   {
@@ -408,7 +420,36 @@ export default function SignUpScreen() {
                 <Text style={[styles.googleButtonText, { color: colors.text }]}>
                   Sign up with Google
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
+
+              <GoogleSigninButton
+                size={GoogleSigninButton.Size.Wide}
+                color={GoogleSigninButton.Color.Dark}
+                onPress={async () => {
+                  try {
+                    await GoogleSignin.hasPlayServices();
+                    const response = await GoogleSignin.signIn();
+                    if (isSuccessResponse(response)) {
+                      const { data, error } =
+                        await supabase.auth.signInWithIdToken({
+                          provider: 'google',
+                          token: response.data.idToken!,
+                        });
+                      console.log(error, data);
+                    }
+                  } catch (error: any) {
+                    if (error.code === statusCodes.IN_PROGRESS) {
+                      // operation (e.g. sign in) is in progress already
+                    } else if (
+                      error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE
+                    ) {
+                      // play services not available or outdated
+                    } else {
+                      // some other error happened
+                    }
+                  }
+                }}
+              />
 
               {/* Sign In Link */}
               <View style={styles.signInContainer}>

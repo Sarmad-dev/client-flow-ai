@@ -52,13 +52,8 @@ interface SubscriptionContextType {
   canAccessAnalytics: () => boolean;
   canAccessAI: () => boolean;
   canAccessAutomation: () => boolean;
-  canAddTeamMember: () => boolean;
-  canAccessAPI: () => boolean;
-  canAccessCustomBranding: () => boolean;
   canAccessAdvancedReports: () => boolean;
   canPerformBulkOperations: () => boolean;
-  canUseCustomFields: () => boolean;
-  canUseWebhooks: () => boolean;
 
   // Usage Management
   incrementUsage: (
@@ -95,7 +90,6 @@ const DEFAULT_SUBSCRIPTION: UserSubscription = {
     teamMembers: 1,
     automationRules: 0,
     emailTemplates: 0,
-    storageUsedMB: 0,
   },
 };
 
@@ -134,29 +128,43 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const initializeRevenueCat = async () => {
     try {
+      Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
       const apiKey =
         Platform.OS === 'ios'
           ? REVENUECAT_CONFIG.apiKeys.ios
           : REVENUECAT_CONFIG.apiKeys.android;
 
-      await Purchases.configure({ apiKey });
+      Purchases.configure({ apiKey });
 
       // Set up listener for customer info updates
       Purchases.addCustomerInfoUpdateListener((info) => {
         handleCustomerInfoUpdate(info);
       });
 
+      await getCustomerInfo();
       await fetchOfferings();
     } catch (error) {
       console.error('Failed to initialize RevenueCat:', error);
     }
   };
 
+  const getCustomerInfo = async () => {
+    const customerInfo = await Purchases.getCustomerInfo();
+  };
+
   const fetchOfferings = async () => {
     try {
       const offerings = await Purchases.getOfferings();
-      setOfferings(offerings);
-      setCurrentOffering(offerings.current);
+
+      if (
+        offerings.current !== null &&
+        offerings.current.availablePackages.length !== 0
+      ) {
+        setOfferings(offerings);
+        setCurrentOffering(offerings.current);
+
+        console.log('Offerings: ', JSON.stringify(offerings, null, 2));
+      }
     } catch (error) {
       console.error('Failed to fetch offerings:', error);
     }
@@ -177,22 +185,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     let plan: SubscriptionPlan = 'free';
     let isActive = false;
 
-    if (
-      customerInfo.entitlements.active[
-        REVENUECAT_CONFIG.entitlements.enterprise
-      ]
-    ) {
-      plan = 'enterprise';
-      isActive = true;
-    } else if (
-      customerInfo.entitlements.active[REVENUECAT_CONFIG.entitlements.pro]
-    ) {
+    if (customerInfo.entitlements.active[REVENUECAT_CONFIG.entitlements.pro]) {
       plan = 'pro';
-      isActive = true;
-    } else if (
-      customerInfo.entitlements.active[REVENUECAT_CONFIG.entitlements.basic]
-    ) {
-      plan = 'basic';
       isActive = true;
     }
 
@@ -671,13 +665,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     canAccessAnalytics,
     canAccessAI,
     canAccessAutomation,
-    canAddTeamMember,
-    canAccessAPI,
-    canAccessCustomBranding,
     canAccessAdvancedReports,
     canPerformBulkOperations,
-    canUseCustomFields,
-    canUseWebhooks,
     incrementUsage,
     decrementUsage,
     syncUsageWithDatabase,

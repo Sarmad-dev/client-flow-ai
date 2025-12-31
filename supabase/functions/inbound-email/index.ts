@@ -1,6 +1,10 @@
 // @ts-nocheck
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import {
+  encryptEmailData,
+  isEncryptionSupported,
+} from '../_shared/encryption.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -715,7 +719,8 @@ async function handler(req: Request): Promise<Response> {
     }
 
     // Build insert payload with enhanced metadata
-    const insertPayload: Record<string, any> = {
+    // NOTE: Inbound emails are now encrypted server-side before storage
+    let insertPayload: Record<string, any> = {
       user_id: profile.user_id,
       direction: 'received',
       subject: subject || null,
@@ -730,7 +735,63 @@ async function handler(req: Request): Promise<Response> {
       attachment_count: attachments.length,
       total_attachment_size: attachments.reduce((sum, a) => sum + a.size, 0),
       created_at: nowIso,
+      // Mark as server-side encrypted
+      needs_encryption: false,
     };
+
+    // Encrypt sensitive email data before storage
+    if (isEncryptionSupported()) {
+      try {
+        log('info', 'Encrypting email data before storage', {
+          requestId,
+          hasSubject: !!subject,
+          hasBodyText: !!bodyText,
+          hasBodyHtml: !!bodyHtml,
+        });
+
+        const encryptedData = await encryptEmailData(
+          {
+            subject: subject || null,
+            body_text: bodyText || null,
+            body_html: bodyHtml || null,
+          },
+          profile.user_id
+        );
+
+        // Update payload with encrypted data
+        insertPayload.subject = encryptedData.subject;
+        insertPayload.body_text = encryptedData.body_text;
+        insertPayload.body_html = encryptedData.body_html;
+
+        log('info', 'Email data encrypted successfully', {
+          requestId,
+          encryptedSubject: !!encryptedData.subject,
+          encryptedBodyText: !!encryptedData.body_text,
+          encryptedBodyHtml: !!encryptedData.body_html,
+        });
+      } catch (encryptionError) {
+        log('error', 'Failed to encrypt email data', {
+          requestId,
+          error: String(encryptionError),
+        });
+
+        // Fall back to storing unencrypted with needs_encryption flag
+        insertPayload.needs_encryption = true;
+
+        log(
+          'warn',
+          'Storing unencrypted email data due to encryption failure',
+          {
+            requestId,
+          }
+        );
+      }
+    } else {
+      log('warn', 'Encryption not supported, storing unencrypted', {
+        requestId,
+      });
+      insertPayload.needs_encryption = true;
+    }
 
     // Add spam metadata if detected
     if (spamCheck.isSpam) {

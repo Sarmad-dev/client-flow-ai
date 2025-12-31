@@ -8,8 +8,12 @@ import React, {
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import {
+  GoogleSignin,
+  isSuccessResponse,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 
 interface AuthContextType {
   session: Session | null;
@@ -37,97 +41,61 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const SESSION_STORAGE_KEY = '@auth/session_v1';
-  const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-  const saveSession = async (newSession: Session | null) => {
-    try {
-      if (newSession) {
-        const payload = JSON.stringify({
-          savedAt: Date.now(),
-          session: newSession,
-        });
-        await AsyncStorage.setItem(SESSION_STORAGE_KEY, payload);
-      } else {
-        await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
-      }
-    } catch (e) {
-      // best-effort; ignore storage errors
-    }
-  };
-
-  const loadSessionFromStorage = async (): Promise<Session | null> => {
-    try {
-      const raw = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { savedAt: number; session: Session };
-      if (!parsed?.savedAt || !parsed?.session) return null;
-      const isExpired = Date.now() - parsed.savedAt > SESSION_TTL_MS;
-      if (isExpired) {
-        await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
-        try {
-          await supabase.auth.signOut();
-        } catch {}
-        return null;
-      }
-      return parsed.session;
-    } catch {
-      return null;
-    }
-  };
+  GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+  });
 
   useEffect(() => {
     WebBrowser.maybeCompleteAuthSession();
 
-    // Initial load with TTL
-    (async () => {
-      const stored = await loadSessionFromStorage();
-      if (stored) {
-        setSession(stored);
-        setUser(stored.user ?? null);
-        setLoading(false);
-      } else {
-        const {
-          data: { session: liveSession },
-        } = await supabase.auth.getSession();
-        setSession(liveSession);
-        setUser(liveSession?.user ?? null);
-        await saveSession(liveSession);
-        setLoading(false);
+    const loadSessionAndUser = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) {
+        console.log('Session Error: ', error);
+        throw error;
       }
-    })();
+
+      setUser(session?.user as User);
+      setSession(session);
+      setLoading(false);
+    };
+
+    loadSessionAndUser();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
-      await saveSession(session);
       setLoading(false);
     });
 
     // Handle OAuth deep links (PKCE)
-    const urlListener = Linking.addEventListener('url', async ({ url }) => {
-      try {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-        if (error) {
-          // eslint-disable-next-line no-console
-          console.error('exchangeCodeForSession error:', error);
-        } else if (data?.session) {
-          await saveSession(data.session);
-          setSession(data.session);
-          setUser(data.session.user ?? null);
-        }
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Deep link handling error:', e);
-      }
-    });
+    // const urlListener = Linking.addEventListener('url', async ({ url }) => {
+    //   console.log('Deep link received:', url);
+    //   try {
+    //     const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+    //     if (error) {
+    //       console.error('exchangeCodeForSession error:', error);
+    //     } else if (data?.session) {
+    //       console.log('Successfully exchanged code for session');
+    //       setSession(data.session);
+    //       setUser(data.session.user ?? null);
+    //     }
+    //   } catch (e) {
+    //     console.error('Deep link handling error:', e);
+    //   }
+    // });
 
     return () => {
       subscription.unsubscribe();
-      urlListener.remove();
+      // urlListener.remove();
     };
   }, []);
 
@@ -153,7 +121,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({
+      scope: 'global',
+    });
   };
 
   const resetPassword = async (email: string) => {
@@ -166,52 +136,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Ensure any previous auth session is completed
       WebBrowser.maybeCompleteAuthSession();
 
-      // Create the redirect URL for your app
-      const redirectTo = Linking.createURL('auth/callback');
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (isSuccessResponse(response)) {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: response.data.idToken!,
+        });
 
-      console.log('Starting Google OAuth with redirect:', redirectTo);
+        if (error) {
+          console.error('Google sign-in error:', error);
+          return { error };
+        }
 
-      // Initiate OAuth flow with Google
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          skipBrowserRedirect: false,
-          // Request additional scopes if needed for Google Calendar
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-
-      if (error) {
-        console.error('Google OAuth error:', error);
-        return { error };
-      }
-
-      // Open the OAuth URL in browser
-      if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectTo
-        );
-
-        if (result.type === 'success') {
-          // The deep link handler will process the callback
+        if (data?.session) {
+          console.log('Successfully signed in with Google');
+          // The auth state change listener will handle the redirect
           return { error: null };
-        } else if (result.type === 'cancel') {
-          return { error: new Error('User cancelled the sign-in flow') };
-        } else {
-          return { error: new Error('Authentication failed') };
         }
       }
-
-      return { error: new Error('No OAuth URL returned') };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Google sign-in error:', error);
+      if (error.code === statusCodes.IN_PROGRESS) {
+        // operation (e.g. sign in) is in progress already
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        // play services not available or outdated
+      } else {
+        // some other error happened
+      }
       return { error } as { error: any };
     }
+
+    return { error: new Error('Sign-in failed') };
   };
 
   const value: AuthContextType = {
