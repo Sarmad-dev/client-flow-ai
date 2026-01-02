@@ -23,9 +23,6 @@ import {
   Star,
   ArrowRight,
   MessageCircle,
-  Calendar,
-  FileText,
-  Target,
   TrendingUp,
   Edit,
 } from 'lucide-react-native';

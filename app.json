@@ -3,56 +3,27 @@
     "name": "NexaSuit",
     "slug": "nexasuit",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/app-icon.png",
-    "scheme": "nexasuit",
-    "userInterfaceStyle": "automatic",
-    "deepLinking": {
-      "enabled": true,
-      "prefixes": ["nexasuit://", "https://nexasuit.app"],
-      "paths": {
-        "emails": "(tabs)/emails",
-        "emails/inbox": "(tabs)/emails-inbox",
-        "emails/analytics": "(tabs)/emails-analytics",
-        "emails/drafts": "(tabs)/email-drafts",
-        "emails/signatures": "(tabs)/email-signatures",
-        "emails/templates": "(tabs)/templates",
-        "emails/sequences": "(tabs)/email-sequences",
-        "emails/sequences/analytics": "(tabs)/email-sequence-analytics",
-        "emails/deliverability": "(tabs)/email-deliverability",
-        "emails/suppression": "(tabs)/email-suppression",
-        "emails/search": "(tabs)/emails-search"
-      }
-    },
     "newArchEnabled": true,
     "jsEngine": "hermes",
-    "ios": {
-      "supportsTablet": true
-    },
     "web": {
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "@react-native-google-signin/google-signin",
       "expo-router",
       "expo-font",
       "expo-web-browser",
       [
-        "expo-build-properties",
+        "expo-maps",
         {
-          "android": {
-            "kotlinVersion": "2.0.21",
-            "gradlePluginVersion": "com.android.tools.build:gradle:8.3.2",
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35
-          }
+          "requestLocationPermission": true,
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
         }
       ]
     ],
     "extra": {
-      "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "246850519520-nnodbd3hep5mcddlo9d6krbuvplhvi19.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "246850519520-9i0fkclq1qt0e3p68gcc251hjkhad3vn.apps.googleusercontent.com",
       "router": {},
       "eas": {
         "projectId": "1052317b-791f-4646-84ef-d76e39aac2aa"
@@ -63,12 +34,7 @@
     },
     "owner": "sarmadjkl",
     "android": {
-      "package": "com.sarmadkhan2694.nexasuit",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyB-TmPW_kLlmU15tZFzjLhgNX8AYURorbk"
-        }
-      }
+      "package": "com.sarmadjkl.nexasuit"
     }
   }
 }

@@ -11,7 +11,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapView, Marker, Region } from './PlatformMapView';
+import { GoogleMaps } from 'expo-maps';
+
+// Temporary: Define Region type for compatibility during migration
+interface Region {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
 import * as Location from 'expo-location';
 import {
   X,
@@ -24,7 +32,6 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { useCreateLead } from '@/hooks/useLeads';
 import { searchPlaces, getPlaceDetails, PlaceResult } from '@/lib/maps';
 
@@ -276,80 +283,63 @@ export function LeadMapView({
         )}
 
         {/* Map */}
-        <MapView
+        <GoogleMaps.View
           style={styles.map}
-          region={region}
-          onRegionChangeComplete={setRegion}
-          showsUserLocation
-          showsMyLocationButton
-        >
-          {/* Existing Leads */}
-          {leadsWithLocation.map((lead) => (
-            <Marker
-              key={lead.id}
-              coordinate={{
+          cameraPosition={{
+            coordinates: {
+              latitude: region.latitude,
+              longitude: region.longitude,
+            },
+            zoom: 12,
+          }}
+          markers={[
+            // Existing Leads
+            ...leadsWithLocation.map((lead) => ({
+              id: `lead-${lead.id}`,
+              coordinates: {
                 latitude: lead.location_lat!,
                 longitude: lead.location_lng!,
-              }}
-              title={lead.name}
-              description={lead.company}
-              onPress={() => setSelectedLead(lead)}
-            >
-              <View
-                style={[
-                  styles.leadMarker,
-                  { backgroundColor: colors.secondary },
-                ]}
-              >
-                <Building size={16} color="#FFFFFF" strokeWidth={2} />
-              </View>
-            </Marker>
-          ))}
-
-          {/* Search Results */}
-          {searchResults.map((place) => (
-            <Marker
-              key={place.place_id}
-              coordinate={{
+              },
+              title: lead.name,
+              snippet: lead.company,
+            })),
+            // Search Results
+            ...searchResults.map((place) => ({
+              id: `search-${place.place_id}`,
+              coordinates: {
                 latitude: place.geometry.location.lat,
                 longitude: place.geometry.location.lng,
-              }}
-              title={place.name}
-              description={place.formatted_address}
-              onPress={() => handlePlaceSelect(place)}
-            >
-              <View
-                style={[
-                  styles.searchMarker,
-                  { backgroundColor: colors.primary },
-                ]}
-              >
-                <MapPin size={16} color="#FFFFFF" strokeWidth={2} />
-              </View>
-            </Marker>
-          ))}
-
-          {/* Selected Place */}
-          {selectedPlace && (
-            <Marker
-              coordinate={{
-                latitude: selectedPlace.geometry.location.lat,
-                longitude: selectedPlace.geometry.location.lng,
-              }}
-              title={selectedPlace.name}
-              description={selectedPlace.formatted_address}
-            >
-              <View
-                style={[
-                  styles.selectedMarker,
-                  { backgroundColor: colors.accent },
-                ]}
-              >
-                <Star size={16} color="#FFFFFF" strokeWidth={2} />
-              </View>
-            </Marker>
-          )}
-        </MapView>
+              },
+              title: place.name,
+              snippet: place.formatted_address,
+            })),
+            // Selected Place
+            ...(selectedPlace
+              ? [
+                  {
+                    id: 'selected-place',
+                    coordinates: {
+                      latitude: selectedPlace.geometry.location.lat,
+                      longitude: selectedPlace.geometry.location.lng,
+                    },
+                    title: selectedPlace.name,
+                    snippet: selectedPlace.formatted_address,
+                  },
+                ]
+              : []),
+          ]}
+          onMarkerClick={(marker) => {
+            if (marker.id?.startsWith('lead-')) {
+              const leadId = marker.id.replace('lead-', '');
+              const lead = leadsWithLocation.find((l) => l.id === leadId);
+              if (lead) setSelectedLead(lead);
+            } else if (marker.id?.startsWith('search-')) {
+              const placeId = marker.id.replace('search-', '');
+              const place = searchResults.find((p) => p.place_id === placeId);
+              if (place) handlePlaceSelect(place);
+            }
+          }}
+        />
 
         {/* Current Location Button */}
         <TouchableOpacity

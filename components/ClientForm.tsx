@@ -9,9 +9,8 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { MapView, Marker } from './PlatformMapView';
-import type { Region } from 'react-native-maps';
-import { supabase } from '@/lib/supabase';
+import { GoogleMaps } from 'expo-maps';
+import type { CameraPosition } from 'expo-maps';
 import * as Location from 'expo-location';
 import {
   X,
@@ -26,7 +25,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { searchPlaces as searchPlacesApi, PlaceResult } from '@/lib/maps';
 import { useCreateClient } from '@/hooks/useClients';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CustomAlert } from '@/components/CustomAlert';
 
 interface ClientFormProps {
   visible: boolean;
@@ -61,11 +59,12 @@ export function ClientForm({
   const [address, setAddress] = useState(initialData?.address || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapRegion, setMapRegion] = useState<Region>({
-    latitude: 37.7749,
-    longitude: -122.4194,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
+  const [mapCamera, setMapCamera] = useState<CameraPosition>({
+    coordinates: {
+      latitude: 37.7749,
+      longitude: -122.4194,
+    },
+    zoom: 12,
   });
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
@@ -151,11 +150,12 @@ export function ClientForm({
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      setMapRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
+      setMapCamera({
+        coordinates: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+        zoom: 12,
       });
     } catch (error) {
       console.error('Error getting location:', error);
@@ -172,8 +172,8 @@ export function ClientForm({
       const results = await searchPlacesApi({
         query,
         location: {
-          lat: mapRegion.latitude,
-          lng: mapRegion.longitude,
+          lat: mapCamera.coordinates?.latitude || 37.7749,
+          lng: mapCamera.coordinates?.longitude || -122.4194,
         },
         radius: 10000,
       });
@@ -191,11 +191,12 @@ export function ClientForm({
     setSelectedPlace(place);
     setCompany(place.name);
     setAddress(place.formatted_address);
-    setMapRegion({
-      latitude: place.geometry.location.lat,
-      longitude: place.geometry.location.lng,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
+    setMapCamera({
+      coordinates: {
+        latitude: place.geometry.location.lat,
+        longitude: place.geometry.location.lng,
+      },
+      zoom: 15,
     });
     setSearchResults([]);
     setSearchQuery('');
@@ -333,22 +334,31 @@ export function ClientForm({
             )}
 
             {/* Map */}
-            <MapView
+            <GoogleMaps.View
               style={styles.map}
-              region={mapRegion}
-              onRegionChangeComplete={setMapRegion}
-            >
-              {selectedPlace && (
-                <Marker
-                  coordinate={{
-                    latitude: selectedPlace.geometry.location.lat,
-                    longitude: selectedPlace.geometry.location.lng,
-                  }}
-                  title={selectedPlace.name}
-                  description={selectedPlace.formatted_address}
-                />
-              )}
-            </MapView>
+              cameraPosition={mapCamera}
+              onMapClick={(event) => {
+                setMapCamera({
+                  coordinates: event.coordinates,
+                  zoom: mapCamera.zoom || 12,
+                });
+              }}
+              markers={
+                selectedPlace
+                  ? [
+                      {
+                        id: 'selected-place',
+                        coordinates: {
+                          latitude: selectedPlace.geometry.location.lat,
+                          longitude: selectedPlace.geometry.location.lng,
+                        },
+                        title: selectedPlace.name,
+                        snippet: selectedPlace.formatted_address,
+                      },
+                    ]
+                  : []
+              }
+            />
 
             {/* Selected Place Info */}
             {selectedPlace && (

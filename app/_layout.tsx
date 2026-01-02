@@ -8,6 +8,8 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { AlertProvider } from '@/contexts/CustomAlertContext';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -25,6 +27,19 @@ export default function RootLayout() {
       },
     },
   });
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      import('expo-navigation-bar')
+        .then((NavigationBar) => {
+          NavigationBar.setVisibilityAsync('hidden');
+          NavigationBar.setBehaviorAsync('overlay-swipe');
+        })
+        .catch(() => {
+          console.log('NavigationBar not available');
+        });
+    }
+  }, []);
 
   return (
     <AuthProvider>

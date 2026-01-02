@@ -14,6 +14,7 @@ import {
   isSuccessResponse,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
+import { Linking } from 'react-native';
 
 interface AuthContextType {
   session: Session | null;
@@ -77,25 +78,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     // Handle OAuth deep links (PKCE)
-    // const urlListener = Linking.addEventListener('url', async ({ url }) => {
-    //   console.log('Deep link received:', url);
-    //   try {
-    //     const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-    //     if (error) {
-    //       console.error('exchangeCodeForSession error:', error);
-    //     } else if (data?.session) {
-    //       console.log('Successfully exchanged code for session');
-    //       setSession(data.session);
-    //       setUser(data.session.user ?? null);
-    //     }
-    //   } catch (e) {
-    //     console.error('Deep link handling error:', e);
-    //   }
-    // });
+    const urlListener = Linking.addEventListener('url', async ({ url }) => {
+      console.log('Deep link received:', url);
+      try {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error) {
+          console.error('exchangeCodeForSession error:', error);
+        } else if (data?.session) {
+          console.log('Successfully exchanged code for session');
+          setSession(data.session);
+          setUser(data.session.user ?? null);
+        }
+      } catch (e) {
+        console.error('Deep link handling error:', e);
+      }
+    });
 
     return () => {
       subscription.unsubscribe();
-      // urlListener.remove();
+      urlListener.remove();
     };
   }, []);
 
@@ -124,6 +125,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await supabase.auth.signOut({
       scope: 'global',
     });
+
+    await GoogleSignin.revokeAccess();
+    await GoogleSignin.signOut();
   };
 
   const resetPassword = async (email: string) => {

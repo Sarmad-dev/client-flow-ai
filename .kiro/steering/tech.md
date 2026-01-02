@@ -30,7 +30,7 @@
 
 - **Zod** - Runtime type validation and form schemas
 - **React Hook Form** - Form management with validation
-- **React Native Maps** - Location and mapping features
+- **Expo Maps** - Location and mapping features
 - **Expo Camera/Image Picker** - Media capture capabilities
 - **React Native Purchases** - In-app subscription management
 - **OpenAI** - AI-powered features and suggestions

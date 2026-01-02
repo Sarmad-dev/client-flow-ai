@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapView, Marker, Region } from './PlatformMapView';
+import { GoogleMaps } from 'expo-maps';
+
+// Temporary: Define Region type for compatibility during migration
+interface Region {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
 import * as Location from 'expo-location';
-import { X, MapPin, Navigation } from 'lucide-react-native';
+import { X, Building, Search, Map, Navigation } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 
 interface Client {
@@ -84,35 +92,31 @@ export function ClientMapView({
         </View>
 
         <View style={styles.mapContainer}>
-          <MapView
+          <GoogleMaps.View
             style={styles.map}
-            region={region}
-            onRegionChangeComplete={setRegion}
-            showsUserLocation
-            showsMyLocationButton
-          >
-            {clientsWithLocation.map((client) => (
-              <Marker
-                key={client.id}
-                coordinate={{
-                  latitude: client.location!.latitude,
-                  longitude: client.location!.longitude,
-                }}
-                title={client.name}
-                description={client.company}
-                onPress={() => setSelectedClient(client)}
-              >
-                <View
-                  style={[
-                    styles.markerContainer,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <MapPin size={20} color="#FFFFFF" strokeWidth={2} />
-                </View>
-              </Marker>
-            ))}
-          </MapView>
+            cameraPosition={{
+              coordinates: {
+                latitude: region.latitude,
+                longitude: region.longitude,
+              },
+              zoom: 12,
+            }}
+            markers={clientsWithLocation.map((client) => ({
+              id: client.id,
+              coordinates: {
+                latitude: client.location!.latitude,
+                longitude: client.location!.longitude,
+              },
+              title: client.name,
+              snippet: client.company,
+            }))}
+            onMarkerClick={(marker) => {
+              const client = clientsWithLocation.find(
+                (c) => c.id === marker.id
+              );
+              if (client) setSelectedClient(client);
+            }}
+          />
 
           {/* Current Location Button */}
           <TouchableOpacity
