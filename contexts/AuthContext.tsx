@@ -7,7 +7,6 @@ import React, {
 } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import {
   GoogleSignin,
@@ -42,11 +41,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-  });
-
   useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    });
+
+    console.log('CLIENT ID: ', process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
     WebBrowser.maybeCompleteAuthSession();
 
     const loadSessionAndUser = async () => {
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(false);
     });
 
-    // Handle OAuth deep links (PKCE)
+    // // Handle OAuth deep links (PKCE)
     const urlListener = Linking.addEventListener('url', async ({ url }) => {
       console.log('Deep link received:', url);
       try {
@@ -142,6 +142,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
+
+      console.log('ID Token: ', response.data?.idToken);
       if (isSuccessResponse(response)) {
         const { data, error } = await supabase.auth.signInWithIdToken({
           provider: 'google',

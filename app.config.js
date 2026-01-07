@@ -40,13 +40,6 @@ export default {
       'expo-font',
       'expo-web-browser',
       [
-        'expo-maps',
-        {
-          requestLocationPermission: true,
-          locationPermission: 'Allow $(PRODUCT_NAME) to use your location',
-        },
-      ],
-      [
         'expo-build-properties',
         {
           android: {

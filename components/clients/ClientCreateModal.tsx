@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClientForm } from '@/components/ClientForm';
+import { ClientForm } from '@/components/clients/ClientForm';
 import { useCreateClient } from '@/hooks/useClients';
 
 interface ClientCreateModalProps {

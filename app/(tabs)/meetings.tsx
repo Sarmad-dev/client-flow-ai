@@ -8,15 +8,15 @@ import {
 } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { MeetingCard } from '@/components/MeetingCard';
-import { MeetingForm } from '@/components/MeetingForm';
+import { MeetingCard } from '@/components/meetings/MeetingCard';
+import { MeetingForm } from '@/components/meetings/MeetingForm';
 import { useClients } from '@/hooks/useClients';
 import { useMeetings, useCreateMeeting } from '@/hooks/useMeetings';
 import type { EnrichedMeeting } from '@/types/meeting-management';
 import { MeetingFormData } from '@/lib/validation';
 import { CustomAlert } from '@/components/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MeetingDetailModal } from '@/components/MeetingDetailModal';
+import { MeetingDetailModal } from '@/components/meetings/MeetingDetailModal';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 

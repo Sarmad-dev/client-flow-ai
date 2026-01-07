@@ -30,7 +30,7 @@ import { ClientEditModal } from '@/components/clients/ClientEditModal';
 import { ClientRecord } from '@/hooks/useClients';
 import ServerDecryptedEmailList from '@/components/ServerDecryptedEmailList';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import EmailComposer from './EmailComposer';
+import EmailComposer from '../EmailComposer';
 
 interface ClientDetailViewProps {
   visible: boolean;

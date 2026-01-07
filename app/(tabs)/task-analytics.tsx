@@ -26,7 +26,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTasks } from '@/hooks/useTasks';
-import TaskOptimization from '@/components/TaskOptimization';
+import TaskOptimization from '@/components/tasks/TaskOptimization';
 import {
   LineChart,
   BarChart,

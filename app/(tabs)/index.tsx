@@ -11,19 +11,31 @@ import { VoiceRecorder } from '@/components/VoiceRecorder';
 import { QuickStats } from '@/components/QuickStats';
 import { RecentActivity } from '@/components/RecentActivity';
 import { useTheme } from '@/hooks/useTheme';
-import { ClientForm } from '@/components/ClientForm';
-import { MeetingForm } from '@/components/MeetingForm';
+import { ClientForm } from '@/components/clients/ClientForm';
+import { MeetingForm } from '@/components/meetings/MeetingForm';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClients } from '@/hooks/useClients';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
 import { router } from 'expo-router';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function HomeScreen() {
+  const { user } = useAuth();
+
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showClientForm, setShowClientForm] = useState(false);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const { colors } = useTheme();
   const { data: clientRecords = [] } = useClients();
+
+  const { canCreateClient, canAccessMeetings, canCreateTask } =
+    useSubscription();
+
+  const queryClient = useQueryClient();
 
   const formClients = clientRecords.map((c) => ({
     id: c.id,
@@ -34,13 +46,31 @@ export default function HomeScreen() {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case 'task':
-        setShowTaskForm(true);
+        if (canCreateTask()) {
+          setShowTaskForm(true);
+          setShowSubscriptionModal(false);
+        } else {
+          setShowTaskForm(false);
+          setShowSubscriptionModal(true);
+        }
         break;
       case 'client':
-        setShowClientForm(true);
+        if (canCreateClient()) {
+          setShowSubscriptionModal(false);
+          setShowClientForm(true);
+        } else {
+          setShowSubscriptionModal(true);
+          setShowClientForm(false);
+        }
         break;
       case 'meeting':
-        setShowMeetingForm(true);
+        if (canAccessMeetings()) {
+          setShowMeetingForm(true);
+          setShowSubscriptionModal(false);
+        } else {
+          setShowMeetingForm(false);
+          setShowSubscriptionModal(true);
+        }
         break;
       default:
         break;
@@ -61,7 +91,6 @@ export default function HomeScreen() {
       color: colors.accent,
       action: 'meeting',
     },
-    { icon: Bell, title: 'Reminders', color: colors.warning },
   ];
 
   return (
@@ -109,7 +138,9 @@ export default function HomeScreen() {
           <VoiceRecorder
             onTaskCreated={(task) => {
               console.log('Task created from voice:', task);
-              // Optionally refresh tasks or show success message
+              queryClient.invalidateQueries({
+                queryKey: ['tasks', 'list', user?.id],
+              });
             }}
           />
 
@@ -172,6 +203,12 @@ export default function HomeScreen() {
         onClose={() => setShowMeetingForm(false)}
         onSubmit={(meeting) => console.log('Meeting created:', meeting)}
         clients={formClients}
+      />
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        featureName="Pro Feature"
+        onClose={() => setShowSubscriptionModal(false)}
       />
     </>
   );

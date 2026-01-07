@@ -22,7 +22,7 @@ import {
   useStopTimer,
 } from '@/hooks/useTimeTracking';
 import { useSubtaskProgress } from '@/hooks/useSubtasks';
-import TaskCollaborationStatus from '@/components/TaskCollaborationStatus';
+import TaskCollaborationStatus from '@/components/tasks/TaskCollaborationStatus';
 
 interface TaskLike {
   id: string;

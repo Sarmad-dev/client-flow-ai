@@ -10,16 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { GoogleMaps } from 'expo-maps';
-
-// Temporary: Define Region type for compatibility during migration
-interface Region {
-  latitude: number;
-  longitude: number;
-  latitudeDelta: number;
-  longitudeDelta: number;
-}
-
+import { MapView, Marker } from './PlatformMapView';
 import * as Location from 'expo-location';
 import { X, Building, Search, Map, User, Star } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -28,6 +19,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { LeadFormData, leadSchema } from '@/lib/validation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface LeadFormProps {
@@ -427,46 +419,36 @@ export function LeadForm({
             )}
 
             {/* Map */}
-            <GoogleMaps.View
+            <MapView
               style={styles.map}
-              cameraPosition={{
-                coordinates: {
-                  latitude: mapRegion.latitude,
-                  longitude: mapRegion.longitude,
-                },
-                zoom: 12,
-              }}
-              markers={[
-                ...(selectedPlace
-                  ? [
-                      {
-                        id: 'selected-place',
-                        coordinates: {
-                          latitude: selectedPlace.geometry.location.lat,
-                          longitude: selectedPlace.geometry.location.lng,
-                        },
-                        title: selectedPlace.name,
-                        snippet: selectedPlace.formatted_address,
-                      },
-                    ]
-                  : []),
-                ...searchResults.map((place) => ({
-                  id: place.place_id,
-                  coordinates: {
+              region={mapRegion}
+              onRegionChangeComplete={setMapRegion}
+              showsUserLocation
+              showsMyLocationButton
+            >
+              {selectedPlace && (
+                <Marker
+                  coordinate={{
+                    latitude: selectedPlace.geometry.location.lat,
+                    longitude: selectedPlace.geometry.location.lng,
+                  }}
+                  title={selectedPlace.name}
+                  description={selectedPlace.formatted_address}
+                />
+              )}
+              {searchResults.map((place) => (
+                <Marker
+                  key={place.place_id}
+                  coordinate={{
                     latitude: place.geometry.location.lat,
                     longitude: place.geometry.location.lng,
-                  },
-                  title: place.name,
-                  snippet: place.formatted_address,
-                })),
-              ]}
-              onMarkerClick={(marker) => {
-                const place = searchResults.find(
-                  (p) => p.place_id === marker.id
-                );
-                if (place) selectPlace(place);
-              }}
-            />
+                  }}
+                  title={place.name}
+                  description={place.formatted_address}
+                  onPress={() => selectPlace(place)}
+                />
+              ))}
+            </MapView>
 
             {/* Selected Place Info */}
             {selectedPlace && (

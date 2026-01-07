@@ -7,10 +7,9 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  Alert,
 } from 'react-native';
-import { GoogleMaps } from 'expo-maps';
-import type { CameraPosition } from 'expo-maps';
+import { MapView, Marker } from '../PlatformMapView';
+import type { Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import {
   X,
@@ -25,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { searchPlaces as searchPlacesApi, PlaceResult } from '@/lib/maps';
 import { useCreateClient } from '@/hooks/useClients';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAlert } from '@/contexts/CustomAlertContext';
 
 interface ClientFormProps {
   visible: boolean;
@@ -49,9 +49,11 @@ export function ClientForm({
   initialData,
 }: ClientFormProps) {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { showAlert } = useAlert();
   const createClient = useCreateClient();
   const [mode, setMode] = useState<'manual' | 'map'>('manual');
+
+  // Form Data States
   const [name, setName] = useState(initialData?.name || '');
   const [company, setCompany] = useState(initialData?.company || '');
   const [email, setEmail] = useState(initialData?.email || '');
@@ -59,36 +61,27 @@ export function ClientForm({
   const [address, setAddress] = useState(initialData?.address || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapCamera, setMapCamera] = useState<CameraPosition>({
-    coordinates: {
-      latitude: 37.7749,
-      longitude: -122.4194,
-    },
-    zoom: 12,
+
+  // Map Region States
+  const [mapRegion, setMapRegion] = useState<Region>({
+    latitude: 37.7749,
+    longitude: -122.4194,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
   });
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
-  const [alertConfig, setAlertConfig] = useState<{
-    visible: boolean;
-    title: string;
-    message: string;
-    onConfirm?: () => void;
-  }>({
-    visible: false,
-    title: '',
-    message: '',
-  });
 
   const [isCreating, setIsCreating] = useState(false);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter a client name');
+      showAlert({ title: 'Error', message: 'Please enter a client name' });
       return;
     }
 
     if (!company.trim()) {
-      Alert.alert('Error', 'Please enter a company name');
+      showAlert({ title: 'Error', message: 'Please enter a company name' });
       return;
     }
 
@@ -113,13 +106,16 @@ export function ClientForm({
 
       const client = await createClient.mutateAsync(clientData);
 
-      Alert.alert('Success', 'Client created successfully!');
+      showAlert({ title: 'Success', message: 'Client created successfully!' });
       onSubmit(client);
       resetForm();
       onClose();
     } catch (error) {
       console.error('Error creating client:', error);
-      Alert.alert('Error', 'Failed to create client. Please try again.');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to create client. Please try again.',
+      });
     } finally {
       setIsCreating(false);
     }
@@ -142,20 +138,19 @@ export function ClientForm({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Permission denied',
-          'Location permission is required to use the map feature'
-        );
+        showAlert({
+          title: 'Permission denied',
+          message: 'Location permission is required to use the map feature',
+        });
         return;
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      setMapCamera({
-        coordinates: {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        },
-        zoom: 12,
+      setMapRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
       });
     } catch (error) {
       console.error('Error getting location:', error);
@@ -172,18 +167,18 @@ export function ClientForm({
       const results = await searchPlacesApi({
         query,
         location: {
-          lat: mapCamera.coordinates?.latitude || 37.7749,
-          lng: mapCamera.coordinates?.longitude || -122.4194,
+          lat: mapRegion.latitude,
+          lng: mapRegion.longitude,
         },
         radius: 10000,
       });
       setSearchResults(results);
     } catch (error) {
       console.error('Error searching places:', error);
-      Alert.alert(
-        'Search Error',
-        'Failed to search for businesses. Please try again.'
-      );
+      showAlert({
+        title: 'Search Error',
+        message: 'Failed to search for businesses. Please try again.',
+      });
     }
   };
 
@@ -191,12 +186,11 @@ export function ClientForm({
     setSelectedPlace(place);
     setCompany(place.name);
     setAddress(place.formatted_address);
-    setMapCamera({
-      coordinates: {
-        latitude: place.geometry.location.lat,
-        longitude: place.geometry.location.lng,
-      },
-      zoom: 15,
+    setMapRegion({
+      latitude: place.geometry.location.lat,
+      longitude: place.geometry.location.lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
     });
     setSearchResults([]);
     setSearchQuery('');
@@ -334,31 +328,22 @@ export function ClientForm({
             )}
 
             {/* Map */}
-            <GoogleMaps.View
+            <MapView
               style={styles.map}
-              cameraPosition={mapCamera}
-              onMapClick={(event) => {
-                setMapCamera({
-                  coordinates: event.coordinates,
-                  zoom: mapCamera.zoom || 12,
-                });
-              }}
-              markers={
-                selectedPlace
-                  ? [
-                      {
-                        id: 'selected-place',
-                        coordinates: {
-                          latitude: selectedPlace.geometry.location.lat,
-                          longitude: selectedPlace.geometry.location.lng,
-                        },
-                        title: selectedPlace.name,
-                        snippet: selectedPlace.formatted_address,
-                      },
-                    ]
-                  : []
-              }
-            />
+              region={mapRegion}
+              onRegionChangeComplete={setMapRegion}
+            >
+              {selectedPlace && (
+                <Marker
+                  coordinate={{
+                    latitude: selectedPlace.geometry.location.lat,
+                    longitude: selectedPlace.geometry.location.lng,
+                  }}
+                  title={selectedPlace.name}
+                  description={selectedPlace.formatted_address}
+                />
+              )}
+            </MapView>
 
             {/* Selected Place Info */}
             {selectedPlace && (

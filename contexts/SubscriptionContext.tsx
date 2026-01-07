@@ -149,7 +149,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const getCustomerInfo = async () => {
-    const customerInfo = await Purchases.getCustomerInfo();
+    await Purchases.getCustomerInfo();
   };
 
   const fetchOfferings = async () => {
@@ -162,8 +162,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
       ) {
         setOfferings(offerings);
         setCurrentOffering(offerings.current);
-
-        console.log('Offerings: ', JSON.stringify(offerings, null, 2));
       }
     } catch (error) {
       console.error('Failed to fetch offerings:', error);
@@ -550,16 +548,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
       limits.maxTeamMembers
     );
   };
-  const canAccessAPI = (): boolean => getCurrentLimits().apiAccessEnabled;
-  const canAccessCustomBranding = (): boolean =>
-    getCurrentLimits().customBrandingEnabled;
   const canAccessAdvancedReports = (): boolean =>
     getCurrentLimits().advancedReportsEnabled;
   const canPerformBulkOperations = (): boolean =>
     getCurrentLimits().bulkOperationsEnabled;
-  const canUseCustomFields = (): boolean =>
-    getCurrentLimits().customFieldsEnabled;
-  const canUseWebhooks = (): boolean => getCurrentLimits().webhooksEnabled;
 
   // Usage Management
   const incrementUsage = async (

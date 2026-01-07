@@ -1,2 +1,1 @@
-import React from 'react';
-export { ClientDetailView as ClientDetailModal } from '@/components/ClientDetailView';
+export { ClientDetailView as ClientDetailModal } from '@/components/clients/ClientDetailView';

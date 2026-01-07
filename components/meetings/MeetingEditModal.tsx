@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { MeetingForm } from '../MeetingForm';
+import { MeetingForm } from './MeetingForm';
 import { useClients } from '@/hooks/useClients';
 import { useUpdateMeeting, MeetingRecord } from '@/hooks/useMeetings';
 

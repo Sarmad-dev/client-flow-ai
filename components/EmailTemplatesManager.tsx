@@ -39,6 +39,7 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface EmailTemplatesManagerProps {
   onSelectTemplate?: (template: EmailTemplate) => void;
@@ -261,213 +262,215 @@ export default function EmailTemplatesManager({
         animationType="slide"
         onRequestClose={handleCloseEditor}
       >
-        <KeyboardAvoidingView
-          style={[
-            styles.modalContainer,
-            { backgroundColor: colors.background },
-          ]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {/* Editor Header */}
-          <View
-            style={[styles.modalHeader, { borderBottomColor: colors.border }]}
+        <SafeAreaView>
+          <KeyboardAvoidingView
+            style={[
+              styles.modalContainer,
+              { backgroundColor: colors.background },
+            ]}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <TouchableOpacity onPress={handleCloseEditor}>
-              <X size={24} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {editingTemplate ? 'Edit Template' : 'New Template'}
-            </Text>
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={createTemplate.isPending || updateTemplate.isPending}
+            {/* Editor Header */}
+            <View
+              style={[styles.modalHeader, { borderBottomColor: colors.border }]}
             >
-              {createTemplate.isPending || updateTemplate.isPending ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Save size={24} color={colors.primary} />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Editor Form */}
-          <ScrollView style={styles.editorForm}>
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Template Name *
+              <TouchableOpacity onPress={handleCloseEditor}>
+                <X size={24} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {editingTemplate ? 'Edit Template' : 'New Template'}
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                placeholder="e.g., Follow-up Email"
-                placeholderTextColor={colors.textSecondary}
-                value={templateName}
-                onChangeText={setTemplateName}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Subject
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                placeholder="Email subject line"
-                placeholderTextColor={colors.textSecondary}
-                value={templateSubject}
-                onChangeText={setTemplateSubject}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Body Content
-              </Text>
-              <View
-                style={[
-                  styles.richEditorContainer,
-                  { borderColor: colors.border },
-                ]}
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={createTemplate.isPending || updateTemplate.isPending}
               >
-                <RichToolbar
-                  editor={richRef}
-                  actions={[
-                    actions.undo,
-                    actions.redo,
-                    actions.setBold,
-                    actions.setItalic,
-                    actions.setUnderline,
-                    actions.setStrikethrough,
-                    actions.heading1,
-                    actions.heading2,
-                    actions.heading3,
-                    actions.insertBulletsList,
-                    actions.insertOrderedList,
-                    actions.checkboxList,
-                    actions.alignLeft,
-                    actions.alignCenter,
-                    actions.alignRight,
-                    actions.blockquote,
-                    actions.code,
-                    actions.insertLink,
-                    actions.removeFormat,
-                  ]}
-                  iconMap={{
-                    [actions.heading1]: ({
-                      selected,
-                    }: {
-                      selected?: boolean;
-                    }) => (
-                      <View
-                        style={{
-                          paddingHorizontal: 6,
-                          paddingVertical: 2,
-                          borderRadius: 4,
-                          backgroundColor: selected
-                            ? `${colors.primary}20`
-                            : 'transparent',
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: selected ? colors.primary : colors.text,
-                            fontWeight: '800',
-                            fontSize: 12,
-                          }}
-                        >
-                          H1
-                        </Text>
-                      </View>
-                    ),
-                    [actions.heading2]: ({
-                      selected,
-                    }: {
-                      selected?: boolean;
-                    }) => (
-                      <View
-                        style={{
-                          paddingHorizontal: 6,
-                          paddingVertical: 2,
-                          borderRadius: 4,
-                          backgroundColor: selected
-                            ? `${colors.primary}20`
-                            : 'transparent',
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: selected ? colors.primary : colors.text,
-                            fontWeight: '800',
-                            fontSize: 12,
-                          }}
-                        >
-                          H2
-                        </Text>
-                      </View>
-                    ),
-                    [actions.heading3]: ({
-                      selected,
-                    }: {
-                      selected?: boolean;
-                    }) => (
-                      <View
-                        style={{
-                          paddingHorizontal: 6,
-                          paddingVertical: 2,
-                          borderRadius: 4,
-                          backgroundColor: selected
-                            ? `${colors.primary}20`
-                            : 'transparent',
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: selected ? colors.primary : colors.text,
-                            fontWeight: '800',
-                            fontSize: 12,
-                          }}
-                        >
-                          H3
-                        </Text>
-                      </View>
-                    ),
-                  }}
-                  iconTint={colors.text}
-                  selectedIconTint={colors.primary}
-                  style={{ backgroundColor: colors.surface }}
-                />
-                <RichEditor
-                  ref={richRef}
+                {createTemplate.isPending || updateTemplate.isPending ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Save size={24} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Editor Form */}
+            <ScrollView style={styles.editorForm}>
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Template Name *
+                </Text>
+                <TextInput
                   style={[
-                    styles.richEditor,
-                    { backgroundColor: colors.surface },
+                    styles.input,
+                    {
+                      backgroundColor: colors.surface,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
                   ]}
-                  editorStyle={{
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                    contentCSSText: editorCssText,
-                  }}
-                  placeholder="Enter email body content..."
-                  onChange={(html) => setTemplateBodyHtml(html)}
-                  initialContentHTML={templateBodyHtml}
+                  placeholder="e.g., Follow-up Email"
+                  placeholderTextColor={colors.textSecondary}
+                  value={templateName}
+                  onChangeText={setTemplateName}
                 />
               </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Subject
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.surface,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  placeholder="Email subject line"
+                  placeholderTextColor={colors.textSecondary}
+                  value={templateSubject}
+                  onChangeText={setTemplateSubject}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Body Content
+                </Text>
+                <View
+                  style={[
+                    styles.richEditorContainer,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  <RichToolbar
+                    editor={richRef}
+                    actions={[
+                      actions.undo,
+                      actions.redo,
+                      actions.setBold,
+                      actions.setItalic,
+                      actions.setUnderline,
+                      actions.setStrikethrough,
+                      actions.heading1,
+                      actions.heading2,
+                      actions.heading3,
+                      actions.insertBulletsList,
+                      actions.insertOrderedList,
+                      actions.checkboxList,
+                      actions.alignLeft,
+                      actions.alignCenter,
+                      actions.alignRight,
+                      actions.blockquote,
+                      actions.code,
+                      actions.insertLink,
+                      actions.removeFormat,
+                    ]}
+                    iconMap={{
+                      [actions.heading1]: ({
+                        selected,
+                      }: {
+                        selected?: boolean;
+                      }) => (
+                        <View
+                          style={{
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                            backgroundColor: selected
+                              ? `${colors.primary}20`
+                              : 'transparent',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: selected ? colors.primary : colors.text,
+                              fontWeight: '800',
+                              fontSize: 12,
+                            }}
+                          >
+                            H1
+                          </Text>
+                        </View>
+                      ),
+                      [actions.heading2]: ({
+                        selected,
+                      }: {
+                        selected?: boolean;
+                      }) => (
+                        <View
+                          style={{
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                            backgroundColor: selected
+                              ? `${colors.primary}20`
+                              : 'transparent',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: selected ? colors.primary : colors.text,
+                              fontWeight: '800',
+                              fontSize: 12,
+                            }}
+                          >
+                            H2
+                          </Text>
+                        </View>
+                      ),
+                      [actions.heading3]: ({
+                        selected,
+                      }: {
+                        selected?: boolean;
+                      }) => (
+                        <View
+                          style={{
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                            backgroundColor: selected
+                              ? `${colors.primary}20`
+                              : 'transparent',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: selected ? colors.primary : colors.text,
+                              fontWeight: '800',
+                              fontSize: 12,
+                            }}
+                          >
+                            H3
+                          </Text>
+                        </View>
+                      ),
+                    }}
+                    iconTint={colors.text}
+                    selectedIconTint={colors.primary}
+                    style={{ backgroundColor: colors.surface }}
+                  />
+                  <RichEditor
+                    ref={richRef}
+                    style={[
+                      styles.richEditor,
+                      { backgroundColor: colors.surface },
+                    ]}
+                    editorStyle={{
+                      backgroundColor: colors.surface,
+                      color: colors.text,
+                      contentCSSText: editorCssText,
+                    }}
+                    placeholder="Enter email body content..."
+                    onChange={(html) => setTemplateBodyHtml(html)}
+                    initialContentHTML={templateBodyHtml}
+                  />
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
 
       {/* Preview Modal */}

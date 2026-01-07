@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { TaskCard } from './TaskCard';
+import { TaskCard } from './tasks/TaskCard';
 import type { TaskRecord } from '@/hooks/useTasks';
 
 interface DraggableTaskCardProps {

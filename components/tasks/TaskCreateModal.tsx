@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { TaskForm } from '@/components/TaskForm';
+import { TaskForm } from '@/components/tasks/TaskForm';
 import { useClients } from '@/hooks/useClients';
 import { useCreateTask } from '@/hooks/useTasks';
 
