@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClientForm } from '../ClientForm';
+import { ClientForm } from './ClientForm';
 import { useUpdateClient, ClientRecord } from '@/hooks/useClients';
 
 interface ClientEditModalProps {

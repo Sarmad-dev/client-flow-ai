@@ -1,3 +1,1 @@
-export { LeadDetailView as LeadDetailModal } from '@/components/LeadDetailView';
-
-
+export { LeadDetailView as LeadDetailModal } from '@/components/leads/LeadDetailView';

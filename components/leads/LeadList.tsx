@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import { LeadCard } from '@/components/LeadCard';
+import { LeadCard } from '@/components/leads/LeadCard';
 import { Target } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 

@@ -23,14 +23,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '@/contexts/CustomAlertContext';
-import { supabase } from '@/lib/supabase';
-import {
-  GoogleSigninButton,
-  GoogleSignin,
-  isSuccessResponse,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
-// Removed @react-native-google-signin/google-signin - using Expo's OAuth instead
 
 export default function SignInScreen() {
   const { colors } = useTheme();

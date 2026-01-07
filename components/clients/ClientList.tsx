@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { ClientCard } from '@/components/ClientCard';
+import { ClientCard } from '@/components/clients/ClientCard';
 import { ClientRecord } from '@/hooks/useClients';
 
 interface ClientListProps {

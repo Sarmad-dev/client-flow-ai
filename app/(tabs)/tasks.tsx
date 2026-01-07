@@ -9,8 +9,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import { TaskCard } from '@/components/TaskCard';
-import { TaskFilter } from '@/components/TaskFilter';
+import { TaskCard } from '@/components/tasks/TaskCard';
+import { TaskFilter } from '@/components/tasks/TaskFilter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   useTasks,
@@ -23,7 +23,7 @@ import { TaskSearchBar } from '@/components/tasks/TaskSearchBar';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
-import TaskSuggestions from '@/components/TaskSuggestions';
+import TaskSuggestions from '@/components/tasks/TaskSuggestions';
 import * as Notifications from 'expo-notifications';
 import { Trash2 } from 'lucide-react-native';
 import { CustomAlert } from '@/components/CustomAlert';

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  SafeAreaView,
   Linking,
   Alert,
   ActivityIndicator,
@@ -30,6 +29,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { LeadEditModal } from '@/components/leads/LeadEditModal';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface LeadDetailViewProps {
   visible: boolean;

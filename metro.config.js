@@ -5,13 +5,10 @@ const config = getDefaultConfig(__dirname);
 // Simple configuration that should work for both platforms
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 
-// Block expo-maps on web
-// config.resolver.blockList = [/node_modules\/expo-maps\/.*$/];
-
 // Add resolver to handle web-specific cases
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // Block expo-maps on web
-  if (platform === 'web' && moduleName.includes('expo-maps')) {
+  if (platform === 'web' && moduleName.includes('react-native-maps')) {
     return {
       filePath: require.resolve('./components/WebMapComponents.tsx'),
       type: 'sourceFile',

@@ -1,1 +1,1 @@
-export { ClientMapView as ClientMapModal } from '@/components/ClientMapView';
+export { ClientMapView as ClientMapModal } from '@/components/clients/ClientMapView';

@@ -46,11 +46,11 @@ import { useSubtasks } from '@/hooks/useSubtasks';
 import { useTaskDependencies } from '@/hooks/useTaskDependencies';
 import { SubtaskCard } from '@/components/SubtaskCard';
 import TimeTracker from '@/components/TimeTracker';
-import TaskDependencyManager from '@/components/TaskDependencyManager';
-import TaskComments from '@/components/TaskComments';
-import TaskActivityTimeline from '@/components/TaskActivityTimeline';
-import TaskAssignmentModal from '@/components/TaskAssignmentModal';
-import TaskCollaborationIndicator from '@/components/TaskCollaborationIndicator';
+import TaskDependencyManager from '@/components/tasks/TaskDependencyManager';
+import TaskComments from '@/components/tasks/TaskComments';
+import TaskActivityTimeline from '@/components/tasks/TaskActivityTimeline';
+import TaskAssignmentModal from '@/components/tasks/TaskAssignmentModal';
+import TaskCollaborationIndicator from '@/components/tasks/TaskCollaborationIndicator';
 
 export default function TaskDetailScreen() {
   const { colors } = useTheme();

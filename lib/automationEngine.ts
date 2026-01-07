@@ -74,11 +74,11 @@ async function executeAutomationRuleWithLogging(
   rule: any,
   context: TriggerContext
 ): Promise<void> {
-  const { task, oldTask, timeEntry, metadata } = context;
+  const { task, oldTask, timeEntry, metadata, event } = context;
 
   // Build trigger context for condition evaluation
   const triggerContext: Record<string, any> = {
-    event: context.event,
+    event,
     metadata: metadata || {},
   };
 

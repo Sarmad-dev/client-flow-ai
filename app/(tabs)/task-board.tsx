@@ -19,7 +19,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { TaskBoard } from '@/components/TaskBoard';
-import { TaskFilter } from '@/components/TaskFilter';
+import { TaskFilter } from '@/components/tasks/TaskFilter';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
 import { TaskSearchBar } from '@/components/tasks/TaskSearchBar';
 import { useTasks, useUpdateTask, TaskRecord } from '@/hooks/useTasks';

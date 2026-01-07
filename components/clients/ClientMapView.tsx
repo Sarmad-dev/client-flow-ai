@@ -11,15 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GoogleMaps } from 'expo-maps';
-
-// Temporary: Define Region type for compatibility during migration
-interface Region {
-  latitude: number;
-  longitude: number;
-  latitudeDelta: number;
-  longitudeDelta: number;
-}
+import { MapView, Marker, Region } from './PlatformMapView';
 import * as Location from 'expo-location';
 import {
   X,
@@ -29,45 +21,47 @@ import {
   Building,
   Star,
   Plus,
+  User,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCreateLead } from '@/hooks/useLeads';
+import { useCreateClient } from '@/hooks/useClients';
 import { searchPlaces, getPlaceDetails, PlaceResult } from '@/lib/maps';
 
-interface Lead {
+interface Client {
   id: string;
   name: string;
   company: string;
-  location_lat?: number;
-  location_lng?: number;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
   address: string;
-  status: string;
 }
 
-interface LeadMapViewProps {
+interface ClientMapViewProps {
   visible: boolean;
   onClose: () => void;
-  leads: Lead[];
-  onLeadCreated: (lead: any) => void;
+  clients: Client[];
+  onClientCreated: (client: any) => void;
 }
 
-export function LeadMapView({
+export function ClientMapView({
   visible,
   onClose,
-  leads,
-  onLeadCreated,
-}: LeadMapViewProps) {
+  clients,
+  onClientCreated,
+}: ClientMapViewProps) {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const createLead = useCreateLead();
+  const createClient = useCreateClient();
   const [region, setRegion] = useState<Region>({
     latitude: 37.7749,
     longitude: -122.4194,
     latitudeDelta: 0.1,
     longitudeDelta: 0.1,
   });
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -143,9 +137,9 @@ export function LeadMapView({
     }
   };
 
-  const createLeadFromPlace = async (place: PlaceResult) => {
+  const createClientFromPlace = async (place: PlaceResult) => {
     try {
-      const lead = await createLead.mutateAsync({
+      const client = await createClient.mutateAsync({
         name: place.name,
         company: place.name,
         address: place.formatted_address,
@@ -164,22 +158,21 @@ export function LeadMapView({
         phone: place.phone_number || '',
         businessType: place.types?.[0]?.replace(/_/g, ' ') || '',
         source: 'map_search',
+        status: 'active',
       } as any);
 
-      Alert.alert('Success', 'Lead created from map selection!');
-      onLeadCreated(lead);
+      Alert.alert('Success', 'Client created from map selection!');
+      onClientCreated(client);
       setSelectedPlace(null);
       setSearchResults([]);
       setSearchQuery('');
     } catch (error) {
-      console.error('Error creating lead from place:', error);
-      Alert.alert('Error', 'Failed to create lead from map selection');
+      console.error('Error creating client from place:', error);
+      Alert.alert('Error', 'Failed to create client from map selection');
     }
   };
 
-  const leadsWithLocation = leads.filter(
-    (lead) => lead.location_lat && lead.location_lng
-  );
+  const clientsWithLocation = clients.filter((client) => client.location);
 
   return (
     <Modal
@@ -193,7 +186,7 @@ export function LeadMapView({
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>
-            Lead Discovery
+            Client Discovery
           </Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <X size={24} color={colors.text} strokeWidth={2} />
@@ -207,7 +200,7 @@ export function LeadMapView({
           <Search size={20} color={colors.textSecondary} strokeWidth={2} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search for businesses to add as leads..."
+            placeholder="Search for businesses to add as clients..."
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={handleSearch}
@@ -266,12 +259,12 @@ export function LeadMapView({
                   </View>
                   <TouchableOpacity
                     style={[
-                      styles.addLeadButton,
+                      styles.addClientButton,
                       { backgroundColor: colors.primary },
                     ]}
                     onPress={(e) => {
                       e.stopPropagation();
-                      createLeadFromPlace(place);
+                      createClientFromPlace(place);
                     }}
                   >
                     <Plus size={16} color="#FFFFFF" strokeWidth={2} />
@@ -282,105 +275,131 @@ export function LeadMapView({
           </View>
         )}
 
-        {/* Map */}
-        <GoogleMaps.View
-          style={styles.map}
-          cameraPosition={{
-            coordinates: {
-              latitude: region.latitude,
-              longitude: region.longitude,
-            },
-            zoom: 12,
-          }}
-          markers={[
-            // Existing Leads
-            ...leadsWithLocation.map((lead) => ({
-              id: `lead-${lead.id}`,
-              coordinates: {
-                latitude: lead.location_lat!,
-                longitude: lead.location_lng!,
-              },
-              title: lead.name,
-              snippet: lead.company,
-            })),
-            // Search Results
-            ...searchResults.map((place) => ({
-              id: `search-${place.place_id}`,
-              coordinates: {
-                latitude: place.geometry.location.lat,
-                longitude: place.geometry.location.lng,
-              },
-              title: place.name,
-              snippet: place.formatted_address,
-            })),
-            // Selected Place
-            ...(selectedPlace
-              ? [
-                  {
-                    id: 'selected-place',
-                    coordinates: {
-                      latitude: selectedPlace.geometry.location.lat,
-                      longitude: selectedPlace.geometry.location.lng,
-                    },
-                    title: selectedPlace.name,
-                    snippet: selectedPlace.formatted_address,
-                  },
-                ]
-              : []),
-          ]}
-          onMarkerClick={(marker) => {
-            if (marker.id?.startsWith('lead-')) {
-              const leadId = marker.id.replace('lead-', '');
-              const lead = leadsWithLocation.find((l) => l.id === leadId);
-              if (lead) setSelectedLead(lead);
-            } else if (marker.id?.startsWith('search-')) {
-              const placeId = marker.id.replace('search-', '');
-              const place = searchResults.find((p) => p.place_id === placeId);
-              if (place) handlePlaceSelect(place);
-            }
-          }}
-        />
+        <View style={styles.mapContainer}>
+          <MapView
+            style={styles.map}
+            region={region}
+            onRegionChangeComplete={setRegion}
+            showsUserLocation
+            showsMyLocationButton
+          >
+            {/* Existing Clients */}
+            {clientsWithLocation.map((client) => (
+              <Marker
+                key={client.id}
+                coordinate={{
+                  latitude: client.location!.latitude,
+                  longitude: client.location!.longitude,
+                }}
+                title={client.name}
+                description={client.company}
+                onPress={() => setSelectedClient(client)}
+              >
+                <View
+                  style={[
+                    styles.markerContainer,
+                    { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <User size={20} color="#FFFFFF" strokeWidth={2} />
+                </View>
+              </Marker>
+            ))}
 
-        {/* Current Location Button */}
-        <TouchableOpacity
-          style={[styles.locationButton, { backgroundColor: colors.surface }]}
-          onPress={getCurrentLocation}
-        >
-          <Navigation size={20} color={colors.primary} strokeWidth={2} />
-        </TouchableOpacity>
+            {/* Search Results */}
+            {searchResults.map((place) => (
+              <Marker
+                key={place.place_id}
+                coordinate={{
+                  latitude: place.geometry.location.lat,
+                  longitude: place.geometry.location.lng,
+                }}
+                title={place.name}
+                description={place.formatted_address}
+                onPress={() => handlePlaceSelect(place)}
+              >
+                <View
+                  style={[
+                    styles.searchMarker,
+                    { backgroundColor: colors.secondary },
+                  ]}
+                >
+                  <MapPin size={16} color="#FFFFFF" strokeWidth={2} />
+                </View>
+              </Marker>
+            ))}
 
-        {/* Selected Lead Info */}
-        {selectedLead && (
-          <View style={[styles.leadInfo, { backgroundColor: colors.surface }]}>
-            <View style={styles.leadHeader}>
+            {/* Selected Place */}
+            {selectedPlace && (
+              <Marker
+                coordinate={{
+                  latitude: selectedPlace.geometry.location.lat,
+                  longitude: selectedPlace.geometry.location.lng,
+                }}
+                title={selectedPlace.name}
+                description={selectedPlace.formatted_address}
+              >
+                <View
+                  style={[
+                    styles.selectedMarker,
+                    { backgroundColor: colors.accent },
+                  ]}
+                >
+                  <Star size={16} color="#FFFFFF" strokeWidth={2} />
+                </View>
+              </Marker>
+            )}
+          </MapView>
+
+          {/* Current Location Button */}
+          <TouchableOpacity
+            style={[styles.locationButton, { backgroundColor: colors.surface }]}
+            onPress={getCurrentLocation}
+          >
+            <Navigation size={20} color={colors.primary} strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Selected Client Info */}
+        {selectedClient && (
+          <View
+            style={[styles.clientInfo, { backgroundColor: colors.surface }]}
+          >
+            <View style={styles.clientHeader}>
               <View
                 style={[
-                  styles.leadAvatar,
-                  { backgroundColor: colors.secondary },
+                  styles.clientAvatar,
+                  { backgroundColor: colors.primary },
                 ]}
               >
-                <Text style={styles.leadInitial}>
-                  {selectedLead.name.charAt(0).toUpperCase()}
+                <Text style={styles.clientInitial}>
+                  {selectedClient.name.charAt(0).toUpperCase()}
                 </Text>
               </View>
-              <View style={styles.leadDetails}>
-                <Text style={[styles.leadName, { color: colors.text }]}>
-                  {selectedLead.name}
+              <View style={styles.clientDetails}>
+                <Text style={[styles.clientName, { color: colors.text }]}>
+                  {selectedClient.name}
                 </Text>
                 <Text
-                  style={[styles.leadCompany, { color: colors.textSecondary }]}
+                  style={[
+                    styles.clientCompany,
+                    { color: colors.textSecondary },
+                  ]}
                 >
-                  {selectedLead.company}
+                  {selectedClient.company}
                 </Text>
                 <Text
-                  style={[styles.leadAddress, { color: colors.textSecondary }]}
+                  style={[
+                    styles.clientAddress,
+                    { color: colors.textSecondary },
+                  ]}
                 >
-                  {selectedLead.address}
+                  {selectedClient.address}
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => setSelectedLead(null)}
-                style={styles.closeLeadInfo}
+                onPress={() => setSelectedClient(null)}
+                style={styles.closeClientInfo}
               >
                 <X size={20} color={colors.textSecondary} strokeWidth={2} />
               </TouchableOpacity>
@@ -421,7 +440,7 @@ export function LeadMapView({
                   styles.addPlaceButton,
                   { backgroundColor: colors.primary },
                 ]}
-                onPress={() => createLeadFromPlace(selectedPlace)}
+                onPress={() => createClientFromPlace(selectedPlace)}
               >
                 <Plus size={20} color="#FFFFFF" strokeWidth={2} />
               </TouchableOpacity>
@@ -432,7 +451,7 @@ export function LeadMapView({
         {/* Stats */}
         <View style={[styles.stats, { backgroundColor: colors.surface }]}>
           <Text style={[styles.statsText, { color: colors.text }]}>
-            Showing {leadsWithLocation.length} leads with locations •{' '}
+            Showing {clientsWithLocation.length} of {clients.length} clients •{' '}
             {searchResults.length} search results
           </Text>
         </View>
@@ -523,20 +542,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  addLeadButton: {
+  addClientButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   map: {
     flex: 1,
   },
   locationButton: {
     position: 'absolute',
-    top: 100,
-    right: 24,
+    top: 16,
+    right: 16,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -548,10 +571,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  leadMarker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  markerContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -584,7 +607,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  leadInfo: {
+  clientInfo: {
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -592,41 +615,41 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  leadHeader: {
+  clientHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  leadAvatar: {
+  clientAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  leadInitial: {
+  clientInitial: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
   },
-  leadDetails: {
+  clientDetails: {
     flex: 1,
     marginLeft: 16,
   },
-  leadName: {
+  clientName: {
     fontSize: 18,
     fontWeight: '600',
   },
-  leadCompany: {
+  clientCompany: {
     fontSize: 14,
     fontWeight: '400',
     marginTop: 2,
   },
-  leadAddress: {
+  clientAddress: {
     fontSize: 12,
     fontWeight: '400',
     marginTop: 4,
   },
-  closeLeadInfo: {
+  closeClientInfo: {
     padding: 4,
   },
   placeInfo: {
