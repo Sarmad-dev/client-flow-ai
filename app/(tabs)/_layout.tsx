@@ -9,7 +9,6 @@ import {
   Target,
   Mail,
   Menu,
-  NotepadTextDashed,
   Calendar,
   X,
   Building2,

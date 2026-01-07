@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { TaskForm } from '@/components/TaskForm';
 import { useClients } from '@/hooks/useClients';
+import { useProjects } from '@/hooks/useProjects';
 import { useCreateTask } from '@/hooks/useTasks';
 
 interface TaskCreateModalProps {
@@ -8,6 +9,7 @@ interface TaskCreateModalProps {
   onClose: () => void;
   onCreated?: (task: any) => void;
   initialStatus?: string;
+  initialProjectId?: string;
 }
 
 export function TaskCreateModal({
@@ -15,8 +17,11 @@ export function TaskCreateModal({
   onClose,
   onCreated,
   initialStatus = 'pending',
+  initialProjectId,
 }: TaskCreateModalProps) {
   const clientsQuery = useClients();
+  const projectsQuery = useProjects();
+
   const clients = useMemo(
     () =>
       (clientsQuery.data ?? []).map((c) => ({
@@ -26,6 +31,18 @@ export function TaskCreateModal({
       })),
     [clientsQuery.data]
   );
+
+  const projects = useMemo(
+    () =>
+      (projectsQuery.data ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        client: p.client,
+        lead: p.lead,
+      })),
+    [projectsQuery.data]
+  );
+
   const createTask = useCreateTask();
 
   return (
@@ -33,13 +50,17 @@ export function TaskCreateModal({
       visible={visible}
       onClose={onClose}
       clients={clients}
+      projects={projects}
+      initialData={{
+        selectedProject: initialProjectId,
+      }}
       onSubmit={async (payload) => {
         const task = await createTask.mutateAsync({
           title: payload.title,
           description: payload.description,
-          client_id:
-            payload.client_id ?? payload.clientId ?? payload.selectedClient,
-          due_date: payload.due_date ?? payload.dueDate ?? null,
+          client_id: payload.client_id ?? null,
+          project_id: payload.project_id ?? null,
+          due_date: payload.due_date ?? null,
           tag: payload.tag,
           priority: payload.priority,
           status: initialStatus,

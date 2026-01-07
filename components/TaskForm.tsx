@@ -16,6 +16,7 @@ import {
   User,
   Tag,
   TriangleAlert as AlertTriangle,
+  Folder,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
@@ -27,10 +28,17 @@ interface TaskFormProps {
   onClose: () => void;
   onSubmit: (task: any) => void;
   clients: Array<{ id: string; name: string; company: string }>;
+  projects?: Array<{
+    id: string;
+    name: string;
+    client?: { name: string; company: string };
+    lead?: { name: string; company: string };
+  }>;
   initialData?: {
     title?: string;
     description?: string;
     selectedClient?: string;
+    selectedProject?: string;
     dueDate?: Date;
     selectedTag?: string;
     priority?: 'low' | 'medium' | 'high';
@@ -42,6 +50,7 @@ export function TaskForm({
   onClose,
   onSubmit,
   clients,
+  projects = [],
   initialData,
 }: TaskFormProps) {
   const { user } = useAuth();
@@ -52,6 +61,9 @@ export function TaskForm({
   );
   const [selectedClient, setSelectedClient] = useState<string>(
     initialData?.selectedClient || ''
+  );
+  const [selectedProject, setSelectedProject] = useState<string>(
+    initialData?.selectedProject || ''
   );
   const [dueDate, setDueDate] = useState<Date>(
     initialData?.dueDate || new Date()
@@ -64,6 +76,7 @@ export function TaskForm({
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showClientPicker, setShowClientPicker] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [addToCalendar, setAddToCalendar] = useState(true);
   const gc = useGoogleCalendar();
 
@@ -87,8 +100,9 @@ export function TaskForm({
       return;
     }
 
-    if (!selectedClient) {
-      Alert.alert('Error', 'Please select a client');
+    // Require either client or project selection
+    if (!selectedClient && !selectedProject) {
+      Alert.alert('Error', 'Please select a client or project');
       return;
     }
 
@@ -96,7 +110,8 @@ export function TaskForm({
       user_id: user?.id,
       title: title.trim(),
       description: description.trim(),
-      client_id: selectedClient,
+      client_id: selectedClient || null,
+      project_id: selectedProject || null,
       due_date: dueDate.toISOString(),
       tag: selectedTag,
       status: 'pending',
@@ -180,12 +195,14 @@ export function TaskForm({
     setTitle(initialData?.title || '');
     setDescription(initialData?.description || '');
     setSelectedClient(initialData?.selectedClient || '');
+    setSelectedProject(initialData?.selectedProject || '');
     setDueDate(initialData?.dueDate || new Date());
     setSelectedTag(initialData?.selectedTag || 'follow-up');
     setPriority(initialData?.priority || 'medium');
   };
 
   const selectedClientData = clients.find((c) => c.id === selectedClient);
+  const selectedProjectData = projects.find((p) => p.id === selectedProject);
 
   return (
     <Modal
@@ -254,7 +271,7 @@ export function TaskForm({
 
           {/* Client Selection */}
           <View style={styles.field}>
-            <Text style={[styles.label, { color: colors.text }]}>Client *</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Client</Text>
             <TouchableOpacity
               style={[
                 styles.picker,
@@ -273,9 +290,49 @@ export function TaskForm({
               >
                 {selectedClientData
                   ? `${selectedClientData.name} - ${selectedClientData.company}`
-                  : 'Select client'}
+                  : 'Select client (optional)'}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Project Selection */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: colors.text }]}>Project</Text>
+            <TouchableOpacity
+              style={[
+                styles.picker,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+              onPress={() => setShowProjectPicker(true)}
+            >
+              <Folder size={20} color={colors.textSecondary} strokeWidth={2} />
+              <Text
+                style={[
+                  styles.pickerText,
+                  {
+                    color: selectedProject ? colors.text : colors.textSecondary,
+                  },
+                ]}
+              >
+                {selectedProjectData
+                  ? selectedProjectData.name
+                  : 'Select project (optional)'}
+              </Text>
+            </TouchableOpacity>
+            {selectedProjectData && (
+              <Text
+                style={[styles.projectInfo, { color: colors.textSecondary }]}
+              >
+                {selectedProjectData.client?.name ||
+                  selectedProjectData.lead?.name}
+                {(selectedProjectData.client?.company ||
+                  selectedProjectData.lead?.company) &&
+                  ` • ${
+                    selectedProjectData.client?.company ||
+                    selectedProjectData.lead?.company
+                  }`}
+              </Text>
+            )}
           </View>
 
           {/* Due Date */}
@@ -460,6 +517,52 @@ export function TaskForm({
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.clientList}>
+              <TouchableOpacity
+                style={[
+                  styles.clientOption,
+                  { backgroundColor: colors.surface },
+                  !selectedClient && {
+                    backgroundColor: colors.primary,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedClient('');
+                  setShowClientPicker(false);
+                }}
+              >
+                <View
+                  style={[
+                    styles.clientAvatar,
+                    { backgroundColor: colors.textSecondary },
+                  ]}
+                >
+                  <X size={16} color="#FFFFFF" strokeWidth={2} />
+                </View>
+                <View style={styles.clientInfo}>
+                  <Text
+                    style={[
+                      styles.clientName,
+                      {
+                        color: !selectedClient ? '#FFFFFF' : colors.text,
+                      },
+                    ]}
+                  >
+                    No Client
+                  </Text>
+                  <Text
+                    style={[
+                      styles.clientCompany,
+                      {
+                        color: !selectedClient
+                          ? '#FFFFFF'
+                          : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Task not associated with any client
+                  </Text>
+                </View>
+              </TouchableOpacity>
               {clients.map((client) => (
                 <TouchableOpacity
                   key={client.id}
@@ -509,6 +612,134 @@ export function TaskForm({
                       ]}
                     >
                       {client.company}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Project Picker Modal */}
+        <Modal
+          visible={showProjectPicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowProjectPicker(false)}
+        >
+          <View
+            style={[styles.pickerModal, { backgroundColor: colors.background }]}
+          >
+            <View style={styles.pickerHeader}>
+              <Text style={[styles.pickerTitle, { color: colors.text }]}>
+                Select Project
+              </Text>
+              <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
+                <X size={24} color={colors.text} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.clientList}>
+              <TouchableOpacity
+                style={[
+                  styles.clientOption,
+                  { backgroundColor: colors.surface },
+                  !selectedProject && {
+                    backgroundColor: colors.primary,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedProject('');
+                  setShowProjectPicker(false);
+                }}
+              >
+                <View
+                  style={[
+                    styles.clientAvatar,
+                    { backgroundColor: colors.textSecondary },
+                  ]}
+                >
+                  <X size={16} color="#FFFFFF" strokeWidth={2} />
+                </View>
+                <View style={styles.clientInfo}>
+                  <Text
+                    style={[
+                      styles.clientName,
+                      {
+                        color: !selectedProject ? '#FFFFFF' : colors.text,
+                      },
+                    ]}
+                  >
+                    No Project
+                  </Text>
+                  <Text
+                    style={[
+                      styles.clientCompany,
+                      {
+                        color: !selectedProject
+                          ? '#FFFFFF'
+                          : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Task not associated with any project
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              {projects.map((project) => (
+                <TouchableOpacity
+                  key={project.id}
+                  style={[
+                    styles.clientOption,
+                    { backgroundColor: colors.surface },
+                    selectedProject === project.id && {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedProject(project.id);
+                    setShowProjectPicker(false);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.clientAvatar,
+                      { backgroundColor: colors.secondary },
+                    ]}
+                  >
+                    <Folder size={16} color="#FFFFFF" strokeWidth={2} />
+                  </View>
+                  <View style={styles.clientInfo}>
+                    <Text
+                      style={[
+                        styles.clientName,
+                        {
+                          color:
+                            selectedProject === project.id
+                              ? '#FFFFFF'
+                              : colors.text,
+                        },
+                      ]}
+                    >
+                      {project.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.clientCompany,
+                        {
+                          color:
+                            selectedProject === project.id
+                              ? '#FFFFFF'
+                              : colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {project.client?.name ||
+                        project.lead?.name ||
+                        'No client/lead'}
+                      {(project.client?.company || project.lead?.company) &&
+                        ` • ${
+                          project.client?.company || project.lead?.company
+                        }`}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -711,5 +942,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
     marginTop: 2,
+  },
+  projectInfo: {
+    fontSize: 12,
+    fontWeight: '400',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });

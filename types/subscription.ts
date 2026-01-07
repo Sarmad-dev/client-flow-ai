@@ -10,6 +10,7 @@ export type SubscriptionStatus =
 export interface SubscriptionLimits {
   maxLeads: number;
   maxClients: number;
+  maxProjects: number;
   maxTasksPerClient: number;
   maxEmailsPerClient: number;
   maxEmailsPerLead: number;
@@ -69,6 +70,7 @@ export interface UserSubscription {
     leads: number;
     clients: number;
     tasks: number;
+    projects: number;
     emailsSent: number;
     teamMembers: number;
     automationRules: number;

@@ -15,6 +15,7 @@ export interface TaskRecord {
   id: string;
   user_id: string;
   client_id: string | null;
+  project_id: string | null;
   title: string;
   description: string | null;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'blocked';
@@ -43,6 +44,7 @@ export interface TaskRecord {
   comments?: TaskComment[];
   assignments?: TaskAssignment[];
   clients?: { name: string; company: string };
+  project?: { name: string; status: string };
 }
 
 const tasksKeys = {
@@ -68,7 +70,7 @@ export function useTasks() {
 
       const { data, error } = await supabase
         .from('tasks')
-        .select('*, clients(name, company)')
+        .select('*, clients(name, company), project:projects(name, status)')
         .eq('user_id', profiles?.id)
         .order('created_at', { ascending: false });
 
@@ -90,7 +92,8 @@ export function useCreateTask() {
     mutationFn: async (
       payload: Partial<TaskRecord> & {
         title: string;
-        client_id: string;
+        client_id?: string;
+        project_id?: string;
         due_date?: string | null;
       }
     ): Promise<TaskRecord> => {
@@ -107,7 +110,8 @@ export function useCreateTask() {
           user_id: profile?.id,
           title: payload.title,
           description: payload.description ?? null,
-          client_id: payload.client_id,
+          client_id: payload.client_id ?? null,
+          project_id: payload.project_id ?? null,
           due_date: payload.due_date ?? null,
           tag: (payload.tag ?? 'follow-up') as TaskRecord['tag'],
           status: (payload.status ?? 'pending') as TaskRecord['status'],
@@ -564,6 +568,37 @@ export function useDeleteTaskDependency() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all as any });
     },
+  });
+}
+
+export function useTasksByProject(projectId: string) {
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  return useQuery({
+    queryKey: [...tasksKeys.all, 'by-project', projectId],
+    queryFn: async (): Promise<TaskRecord[]> => {
+      if (!userId || !projectId) return [];
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*, clients(name, company), project:projects(name, status)')
+        .eq('user_id', profile.id)
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []) as unknown as TaskRecord[];
+    },
+    enabled: !!userId && !!projectId,
   });
 }
 

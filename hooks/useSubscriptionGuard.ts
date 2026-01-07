@@ -6,6 +6,7 @@ export const useSubscriptionGuard = () => {
     canCreateLead,
     canCreateClient,
     canCreateTask,
+    canCreateProject,
     canSendEmail,
     canAccessMeetings,
     canAccessAnalytics,
@@ -39,6 +40,10 @@ export const useSubscriptionGuard = () => {
     return checkAndShowModal('Task Creation', () => canCreateTask(clientId));
   };
 
+  const guardProjectCreation = (): boolean => {
+    return checkAndShowModal('Project Creation', canCreateProject);
+  };
+
   const guardEmailSending = (type: 'client' | 'lead', id: string): boolean => {
     return checkAndShowModal('Email Sending', () => canSendEmail(type, id));
   };
@@ -56,6 +61,7 @@ export const useSubscriptionGuard = () => {
     guardLeadCreation,
     guardClientCreation,
     guardTaskCreation,
+    guardProjectCreation,
     guardEmailSending,
     guardMeetingsAccess,
     guardAnalyticsAccess,
@@ -70,6 +76,7 @@ export const useSubscriptionGuard = () => {
     canCreateLead,
     canCreateClient,
     canCreateTask,
+    canCreateProject,
     canSendEmail,
     canAccessMeetings,
     canAccessAnalytics,

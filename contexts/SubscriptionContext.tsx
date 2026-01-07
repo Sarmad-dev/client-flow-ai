@@ -47,6 +47,7 @@ interface SubscriptionContextType {
   canCreateLead: () => boolean;
   canCreateClient: () => boolean;
   canCreateTask: (clientId?: string) => boolean;
+  canCreateProject: () => boolean;
   canSendEmail: (type: 'client' | 'lead', id: string) => boolean;
   canAccessMeetings: () => boolean;
   canAccessAnalytics: () => boolean;
@@ -87,6 +88,7 @@ const DEFAULT_SUBSCRIPTION: UserSubscription = {
     clients: 0,
     tasks: 0,
     emailsSent: 0,
+    projects: 0,
     teamMembers: 1,
     automationRules: 0,
     emailTemplates: 0,
@@ -105,7 +107,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
   const [analytics, setAnalytics] = useState<SubscriptionAnalytics | null>(
     null
   );
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Initialize RevenueCat
   useEffect(() => {
@@ -312,6 +314,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
       emailsResult,
       templatesResult,
       rulesResult,
+      projectsResult,
     ] = await Promise.all([
       supabase
         .from('leads')
@@ -337,12 +340,17 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
         .from('automation_rules')
         .select('id', { count: 'exact' })
         .eq('user_id', userId),
+      supabase
+        .from('projects')
+        .select('id', { count: 'exact' })
+        .eq('user_id', profile?.id),
     ]);
 
     return {
       leads: leadsResult.count || 0,
       clients: clientsResult.count || 0,
       tasks: tasksResult.count || 0,
+      projects: projectsResult.count || 0,
       emailsSent: emailsResult.count || 0,
       teamMembers: 1, // TODO: Implement team members count
       automationRules: rulesResult.count || 0,
@@ -526,6 +534,14 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   };
 
+  const canCreateProject = (): boolean => {
+    const limits = getCurrentLimits();
+    return isWithinLimit(
+      userSubscription.currentUsage.projects,
+      limits.maxProjects
+    );
+  };
+
   const canSendEmail = (type: 'client' | 'lead', id: string): boolean => {
     const limits = getCurrentLimits();
     const maxEmails =
@@ -660,6 +676,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     canCreateLead,
     canCreateClient,
     canCreateTask,
+    canCreateProject,
     canSendEmail,
     canAccessMeetings,
     canAccessAnalytics,

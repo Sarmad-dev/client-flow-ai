@@ -15,10 +15,12 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import { Linking } from 'react-native';
+import { Profile } from '@/hooks/useProfile';
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
+  profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (
@@ -40,6 +42,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   GoogleSignin.configure({
@@ -60,7 +63,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw error;
       }
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', session?.user.id)
+        .single();
+
       setUser(session?.user as User);
+      setProfile(profile);
       setSession(session);
       setLoading(false);
     };
@@ -177,6 +187,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value: AuthContextType = {
     session,
     user,
+    profile,
     loading,
     signIn,
     signUp,

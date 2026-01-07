@@ -9,6 +9,7 @@ export const SUBSCRIPTION_LIMITS: Record<string, SubscriptionLimits> = {
   free: {
     maxLeads: 5,
     maxClients: 3,
+    maxProjects: 2,
     maxTasksPerClient: 5,
     maxEmailsPerClient: 10,
     maxEmailsPerLead: 5,
@@ -29,6 +30,7 @@ export const SUBSCRIPTION_LIMITS: Record<string, SubscriptionLimits> = {
   pro: {
     maxLeads: -1,
     maxClients: -1,
+    maxProjects: -1, // unlimited
     maxTasksPerClient: -1, // unlimited
     maxEmailsPerClient: -1,
     maxEmailsPerLead: -1,
@@ -62,6 +64,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
     features: [
       '5 Leads',
       '3 Clients',
+      '2 Projects',
       '5 Tasks per Client',
       '10 Emails per Client',
       'Basic CRM Features',
@@ -80,6 +83,7 @@ export const SUBSCRIPTION_TIERS: SubscriptionTier[] = [
     features: [
       'Unlimited Leads',
       'Unlimited Clients',
+      'Unlimited Projects',
       'Unlimited Tasks',
       'Unlimited Emails',
       'Advanced Meeting Management',

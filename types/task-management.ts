@@ -6,6 +6,36 @@ import { TaskRecord } from '@/hooks/useTasks';
 // Re-export the main TaskRecord interface from hooks for consistency
 export type { TaskRecord } from '@/hooks/useTasks';
 
+// Project interface for organizing tasks
+export interface ProjectRecord {
+  id: string;
+  user_id: string;
+  client_id: string | null;
+  lead_id: string | null;
+  name: string;
+  description: string | null;
+  status: 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  start_date: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  progress_percentage: number;
+  estimated_hours: number | null;
+  actual_hours: number;
+  budget: number | null;
+  tags: string[] | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Computed/joined fields
+  tasks?: TaskRecord[];
+  client?: { name: string; company: string };
+  lead?: { name: string; company: string };
+  task_count?: number;
+  completed_task_count?: number;
+}
+
 // Subtask interface - extends TaskRecord but with required parent_task_id
 export interface SubtaskRecord {
   id: string;
