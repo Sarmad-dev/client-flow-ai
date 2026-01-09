@@ -7,17 +7,18 @@ import {
   Modal,
   TouchableOpacity,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { TaskFilter } from '@/components/tasks/TaskFilter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  useTasks,
+  useTasksByProject,
   useToggleTaskStatus,
   useDeleteTask,
   TaskRecord,
 } from '@/hooks/useTasks';
+import { useProject } from '@/hooks/useProjects';
 import { TaskHeader } from '@/components/tasks/TaskHeader';
 import { TaskSearchBar } from '@/components/tasks/TaskSearchBar';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
@@ -25,16 +26,20 @@ import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 import TaskSuggestions from '@/components/tasks/TaskSuggestions';
 import * as Notifications from 'expo-notifications';
-import { Trash2 } from 'lucide-react-native';
+import { Trash2, ArrowLeft, FolderOpen } from 'lucide-react-native';
 import { CustomAlert } from '@/components/CustomAlert';
 
-export default function TasksScreen() {
+export default function ProjectTasksScreen() {
   const { colors } = useTheme();
+  const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null);
-  const tasksQuery = useTasks();
+
+  // Hooks
+  const { data: project } = useProject(projectId!);
+  const tasksQuery = useTasksByProject(projectId!);
   const tasks = tasksQuery.data?.filter((task) => !task.parent_task_id) ?? [];
   const toggleTask = useToggleTaskStatus();
   const deleteTask = useDeleteTask();
@@ -57,14 +62,31 @@ export default function TasksScreen() {
     message: '',
   });
 
+  // Filter tasks based on search query
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks;
+
+    const query = searchQuery.toLowerCase();
+    return tasks.filter(
+      (task) =>
+        task.title.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        task.tag.toLowerCase().includes(query)
+    );
+  }, [tasks, searchQuery]);
+
   const activeTasks = useMemo(
-    () => tasks.filter((t) => t.status !== 'completed'),
-    [tasks]
+    () => filteredTasks.filter((t) => t.status !== 'completed'),
+    [filteredTasks]
   );
   const completedTasks = useMemo(
-    () => tasks.filter((t) => t.status === 'completed'),
-    [tasks]
+    () => filteredTasks.filter((t) => t.status === 'completed'),
+    [filteredTasks]
   );
+
+  const handleBack = () => {
+    router.back();
+  };
 
   useEffect(() => {
     const setup = async () => {
@@ -150,23 +172,67 @@ export default function TasksScreen() {
     );
   };
 
+  if (!projectId) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View style={styles.errorContainer}>
+          <FolderOpen size={48} color={colors.textSecondary} strokeWidth={1} />
+          <Text style={[styles.errorText, { color: colors.error }]}>
+            No project selected
+          </Text>
+          <TouchableOpacity
+            style={[styles.backButton, { backgroundColor: colors.primary }]}
+            onPress={handleBack}
+          >
+            <Text style={[styles.backButtonText, { color: colors.surface }]}>
+              Go Back
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <>
       <SafeAreaView
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <TaskHeader
-          onToggleFilter={() => setShowFilter((s) => !s)}
-          onOpenForm={() => {
-            if (guardTaskCreation('')) {
-              setShowTaskForm(true);
-            }
-          }}
-          onOpenBoard={() => router.push('/task-board')}
-          onOpenAnalytics={() => router.push('/(tabs)/task-analytics')}
-          onOpenAutomations={() => router.push('/(tabs)/task-automation')}
-          onOpenDependencies={() => router.push('/(tabs)/dependency-graph')}
-        />
+        {/* Custom Header */}
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity onPress={handleBack} style={styles.headerButton}>
+            <ArrowLeft size={24} color={colors.text} strokeWidth={2} />
+          </TouchableOpacity>
+
+          <View style={styles.headerContent}>
+            <Text
+              style={[styles.headerTitle, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {project?.name || 'Project Tasks'}
+            </Text>
+            <Text
+              style={[styles.headerSubtitle, { color: colors.textSecondary }]}
+            >
+              {tasks.length} tasks
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (guardTaskCreation('')) {
+                setShowTaskForm(true);
+              }
+            }}
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+          >
+            <Text style={[styles.addButtonText, { color: colors.surface }]}>
+              +
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <TaskSearchBar value={searchQuery} onChangeText={setSearchQuery} />
 
@@ -175,6 +241,8 @@ export default function TasksScreen() {
         <TaskCreateModal
           visible={showTaskForm}
           onClose={() => setShowTaskForm(false)}
+          initialProjectId={projectId}
+          onCreated={() => setShowTaskForm(false)}
         />
 
         <SubscriptionModal
@@ -197,52 +265,85 @@ export default function TasksScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
-          {/* Task Suggestions */}
-          {/* <TaskSuggestions onRefresh={() => tasksQuery.refetch()} /> */}
-
-          {/* Active Tasks */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Active Tasks ({activeTasks.length})
-            </Text>
-            {activeTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onToggleComplete={() =>
-                  toggleTask.mutate({ id: task.id, to: 'completed' })
-                }
-                onPress={() =>
-                  router.push(`/(tabs)/task-detail?taskId=${task.id}`)
-                }
-                onDelete={() => handleDeleteTask(task.id, task.title)}
+          {tasks.length === 0 ? (
+            <View style={styles.emptyState}>
+              <FolderOpen
+                size={64}
+                color={colors.textSecondary}
+                strokeWidth={1}
               />
-            ))}
-          </View>
-
-          {/* Completed Tasks */}
-          {completedTasks.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Completed ({completedTasks.length})
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                No Tasks Yet
               </Text>
-              {completedTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onToggleComplete={() =>
-                    toggleTask.mutate({ id: task.id, to: 'pending' })
+              <Text
+                style={[styles.emptyMessage, { color: colors.textSecondary }]}
+              >
+                Create your first task for this project to get started
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.emptyButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={() => {
+                  if (guardTaskCreation('')) {
+                    setShowTaskForm(true);
                   }
-                  onPress={() =>
-                    router.push(`/(tabs)/task-detail?taskId=${task.id}`)
-                  }
-                  onDelete={() => handleDeleteTask(task.id, task.title)}
-                />
-              ))}
+                }}
+              >
+                <Text style={styles.emptyButtonText}>Create Task</Text>
+              </TouchableOpacity>
             </View>
+          ) : (
+            <>
+              {/* Active Tasks */}
+              {activeTasks.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Active Tasks ({activeTasks.length})
+                  </Text>
+                  {activeTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onToggleComplete={() =>
+                        toggleTask.mutate({ id: task.id, to: 'completed' })
+                      }
+                      onPress={() =>
+                        router.push(`/(tabs)/task-detail?taskId=${task.id}`)
+                      }
+                      onDelete={() => handleDeleteTask(task.id, task.title)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* Completed Tasks */}
+              {completedTasks.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Completed ({completedTasks.length})
+                  </Text>
+                  {completedTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onToggleComplete={() =>
+                        toggleTask.mutate({ id: task.id, to: 'pending' })
+                      }
+                      onPress={() =>
+                        router.push(`/(tabs)/task-detail?taskId=${task.id}`)
+                      }
+                      onDelete={() => handleDeleteTask(task.id, task.title)}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
           )}
         </ScrollView>
       </SafeAreaView>
+
       <Modal
         visible={!!selectedTask}
         animationType="slide"
@@ -348,22 +449,97 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  backButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
-  title: {
-    fontSize: 28,
+  headerButton: {
+    padding: 8,
+  },
+  headerContent: {
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  headerTitle: {
+    fontSize: 20,
     fontWeight: '700',
   },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 12,
+  headerSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 2,
   },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: '300',
+  },
+
+  // Empty State
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 64,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Rest of the styles
   filterButton: {
     width: 44,
     height: 44,
@@ -375,18 +551,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
   },
   searchContainer: {
     flexDirection: 'row',

@@ -27,13 +27,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAlert } from '@/contexts/CustomAlertContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  GoogleSignin,
-  GoogleSigninButton,
-  isSuccessResponse,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
-import { supabase } from '@/lib/supabase';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -55,10 +48,6 @@ export default function SignUpScreen() {
     visible: false,
     title: '',
     message: '',
-  });
-
-  GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
   });
 
   // Animations
@@ -172,6 +161,23 @@ export default function SignUpScreen() {
     setLoading(false);
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    buttonScale.value = withSpring(0.95);
+
+    const { error } = await signInWithGoogle();
+
+    if (error) {
+      showAlert({
+        title: 'Error!',
+        message: 'Google Sign In Failed',
+      });
+    }
+
+    buttonScale.value = withSpring(1);
+    setLoading(false);
+  };
+
   // Don't render the form if user is already authenticated
   if (user && session) {
     return null;
@@ -198,7 +204,7 @@ export default function SignUpScreen() {
                 resizeMode="contain"
               />
               <Text style={[styles.appName, { color: colors.text }]}>
-                ClientFlow AI
+                NexaSuit
               </Text>
               <Text style={[styles.tagline, { color: colors.textSecondary }]}>
                 Join thousands of professionals
@@ -402,7 +408,7 @@ export default function SignUpScreen() {
               </View>
 
               {/* Google Sign Up */}
-              {/* <TouchableOpacity
+              <TouchableOpacity
                 style={[
                   styles.googleButton,
                   {
@@ -410,7 +416,7 @@ export default function SignUpScreen() {
                     borderColor: colors.border,
                   },
                 ]}
-                onPress={handleGoogleSignUp}
+                onPress={handleGoogleSignIn}
                 disabled={loading}
                 activeOpacity={0.8}
               >
@@ -418,38 +424,9 @@ export default function SignUpScreen() {
                   <Text style={styles.googleIconText}>G</Text>
                 </View>
                 <Text style={[styles.googleButtonText, { color: colors.text }]}>
-                  Sign up with Google
+                  Sign in with Google
                 </Text>
-              </TouchableOpacity> */}
-
-              <GoogleSigninButton
-                size={GoogleSigninButton.Size.Wide}
-                color={GoogleSigninButton.Color.Dark}
-                onPress={async () => {
-                  try {
-                    await GoogleSignin.hasPlayServices();
-                    const response = await GoogleSignin.signIn();
-                    if (isSuccessResponse(response)) {
-                      const { data, error } =
-                        await supabase.auth.signInWithIdToken({
-                          provider: 'google',
-                          token: response.data.idToken!,
-                        });
-                      console.log(error, data);
-                    }
-                  } catch (error: any) {
-                    if (error.code === statusCodes.IN_PROGRESS) {
-                      // operation (e.g. sign in) is in progress already
-                    } else if (
-                      error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE
-                    ) {
-                      // play services not available or outdated
-                    } else {
-                      // some other error happened
-                    }
-                  }
-                }}
-              />
+              </TouchableOpacity>
 
               {/* Sign In Link */}
               <View style={styles.signInContainer}>

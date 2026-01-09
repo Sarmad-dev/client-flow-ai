@@ -18,9 +18,9 @@ import {
   Edit,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { VoiceRecorder } from './VoiceRecorder';
-import { MeetingEditModal } from './meetings/MeetingEditModal';
-import { MeetingRecord, EnrichedMeeting } from '@/hooks/useMeetings';
+import { VoiceRecorder } from '../VoiceRecorder';
+import { MeetingEditModal } from '@/components/meetings/MeetingEditModal';
+import { EnrichedMeeting } from '@/types/meeting-management';
 
 interface MeetingDetailModalProps {
   visible: boolean;

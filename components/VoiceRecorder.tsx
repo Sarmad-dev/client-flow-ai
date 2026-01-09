@@ -37,7 +37,7 @@ import {
   VoiceAnalysis,
   generateMeetingSummary,
 } from '@/lib/ai';
-import { ClientSelectionModal } from './ClientSelectionModal';
+import { ClientSelectionModal } from './clients/ClientSelectionModal';
 
 interface VoiceRecorderProps {
   onTaskCreated?: (task: any) => void;

@@ -1,3 +1,1 @@
-export { LeadMapView as LeadMapModal } from '@/components/LeadMapView';
-
-
+export { LeadMapView as LeadMapModal } from '@/components/leads/LeadMapView';

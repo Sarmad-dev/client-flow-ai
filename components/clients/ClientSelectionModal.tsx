@@ -13,7 +13,7 @@ import { X, Search, Calendar, User, Building } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { supabase } from '@/lib/supabase';
 import { Platform } from 'react-native';
-import { PlatformDateTimePicker } from './PlatformDateTimePicker';
+import { PlatformDateTimePicker } from '../PlatformDateTimePicker';
 
 interface Client {
   id: string;
@@ -78,7 +78,7 @@ export function ClientSelectionModal({
         setSearchQuery(suggestedClientName);
         filterClients(suggestedClientName);
       }, 100);
-      
+
       return () => clearTimeout(timer);
     }
   }, [clients, suggestedClientName]);

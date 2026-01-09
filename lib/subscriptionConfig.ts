@@ -8,12 +8,8 @@ import {
 export const SUBSCRIPTION_LIMITS: Record<string, SubscriptionLimits> = {
   free: {
     maxLeads: 5,
-<<<<<<< HEAD
-    maxClients: 3,
     maxProjects: 2,
-=======
     maxClients: 5,
->>>>>>> main
     maxTasksPerClient: 5,
     maxEmailsPerClient: 10,
     maxEmailsPerLead: 5,

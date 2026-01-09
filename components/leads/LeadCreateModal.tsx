@@ -1,5 +1,5 @@
 import React from 'react';
-import { LeadForm } from '@/components/LeadForm';
+import { LeadForm } from '@/components/leads/LeadForm';
 import { useCreateLead } from '@/hooks/useLeads';
 
 interface LeadCreateModalProps {
@@ -8,7 +8,11 @@ interface LeadCreateModalProps {
   onCreated?: (lead: any) => void;
 }
 
-export function LeadCreateModal({ visible, onClose, onCreated }: LeadCreateModalProps) {
+export function LeadCreateModal({
+  visible,
+  onClose,
+  onCreated,
+}: LeadCreateModalProps) {
   const createLead = useCreateLead();
 
   return (
@@ -22,5 +26,3 @@ export function LeadCreateModal({ visible, onClose, onCreated }: LeadCreateModal
     />
   );
 }
-
-

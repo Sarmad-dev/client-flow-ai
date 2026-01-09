@@ -1,5 +1,5 @@
 import React from 'react';
-import { LeadForm } from '../LeadForm';
+import { LeadForm } from '@/components/leads/LeadForm';
 import { useUpdateLead, LeadRecord } from '@/hooks/useLeads';
 
 interface LeadEditModalProps {

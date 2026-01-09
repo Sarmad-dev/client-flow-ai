@@ -11,6 +11,14 @@ export default {
       enabled: true,
       prefixes: ['nexasuit://', 'https://nexasuit.app'],
       paths: {
+        // Auth paths
+        'auth/callback': '(auth)/callback',
+        'auth/confirm': '(auth)/confirm',
+        'auth/reset-password': '(auth)/forgot-password',
+        'auth/invite': '(auth)/callback',
+        'auth/magic-link': '(auth)/callback',
+
+        // Email paths
         emails: '(tabs)/emails',
         'emails/inbox': '(tabs)/emails-inbox',
         'emails/analytics': '(tabs)/emails-analytics',
@@ -22,6 +30,12 @@ export default {
         'emails/deliverability': '(tabs)/email-deliverability',
         'emails/suppression': '(tabs)/email-suppression',
         'emails/search': '(tabs)/emails-search',
+
+        // Additional app paths
+        'projects/:projectId': '(tabs)/project-detail',
+        'tasks/:taskId': '(tabs)/task-detail',
+        'clients/:clientId': '(tabs)/client-detail',
+        'leads/:leadId': '(tabs)/lead-detail',
       },
     },
     newArchEnabled: true,

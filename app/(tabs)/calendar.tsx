@@ -15,7 +15,7 @@ import { useMeetings } from '@/hooks/useMeetings';
 import { useTasks, type TaskRecord } from '@/hooks/useTasks';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import type { EnrichedMeeting } from '@/types/meeting-management';
-import { MeetingDetailModal } from '@/components/MeetingDetailModal';
+import { MeetingDetailModal } from '@/components/meetings/MeetingDetailModal';
 import { TaskEditModal } from '@/components/tasks/TaskEditModal';
 
 export default function CalendarScreen() {

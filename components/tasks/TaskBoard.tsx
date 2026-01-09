@@ -11,13 +11,13 @@ import {
 import { Plus } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '@/hooks/useTheme';
-import { DraggableTaskCard } from './DraggableTaskCard';
 import type { TaskRecord } from '@/hooks/useTasks';
 import type {
   BoardColumn,
   BoardConfiguration,
   TaskFilters,
 } from '@/types/task-management';
+import { DraggableTaskCard } from '../DraggableTaskCard';
 
 const { width: screenWidth } = Dimensions.get('window');
 

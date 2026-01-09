@@ -10,7 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { MapView, Marker } from './PlatformMapView';
+import { MapView, Marker } from '../PlatformMapView';
 import * as Location from 'expo-location';
 import { X, Building, Search, Map, User, Star } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';

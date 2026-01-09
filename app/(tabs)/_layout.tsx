@@ -334,7 +334,7 @@ export default function TabLayout() {
                     router.push('/(tabs)/dependency-graph');
                   }}
                 />
-                <AnimatedMenuItem
+                {/* <AnimatedMenuItem
                   icon={<Ionicons name="flash" size={20} color="#EC4899" />}
                   label="Automation"
                   color="#EC4899"
@@ -342,7 +342,7 @@ export default function TabLayout() {
                     closeMore();
                     router.push('/(tabs)/task-automation');
                   }}
-                />
+                /> */}
               </View>
 
               {/* Section Divider */}
@@ -409,9 +409,9 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="tasks"
+          name="projects"
           options={{
-            title: 'Tasks',
+            title: 'Projects',
             tabBarIcon: ({ size, color }) => (
               <CheckSquare size={size} color={color} strokeWidth={2} />
             ),
@@ -474,6 +474,8 @@ export default function TabLayout() {
           }}
         />
         {/* Hidden screens accessed from sidebar */}
+        <Tabs.Screen name="project-detail" options={{ href: null }} />
+        <Tabs.Screen name="tasks" options={{ href: null }} />
         <Tabs.Screen name="meetings" options={{ href: null }} />
         <Tabs.Screen name="emails" options={{ href: null }} />
         <Tabs.Screen name="emails-analytics" options={{ href: null }} />

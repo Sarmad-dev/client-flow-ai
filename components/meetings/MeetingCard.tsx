@@ -9,7 +9,7 @@ import {
   MoveVertical as MoreVertical,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { EnrichedMeeting } from '@/hooks/useMeetings';
+import { EnrichedMeeting } from '@/types/meeting-management';
 
 interface MeetingCardProps {
   meeting: EnrichedMeeting;
@@ -145,7 +145,7 @@ export function MeetingCard({ meeting, onPress }: MeetingCardProps) {
         </View>
       )}
 
-      {isUpcoming && (
+      {isUpcoming() && (
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary }]}

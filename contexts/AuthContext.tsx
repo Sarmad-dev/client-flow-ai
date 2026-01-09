@@ -30,6 +30,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,20 +88,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(false);
     });
 
-    // // Handle OAuth deep links (PKCE)
+    // Handle OAuth deep links (PKCE) - only for OAuth flows
     const urlListener = Linking.addEventListener('url', async ({ url }) => {
-      console.log('Deep link received:', url);
-      try {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-        if (error) {
-          console.error('exchangeCodeForSession error:', error);
-        } else if (data?.session) {
-          console.log('Successfully exchanged code for session');
-          setSession(data.session);
-          setUser(data.session.user ?? null);
+      console.log('Deep link received in AuthContext:', url);
+
+      // Only handle OAuth callback URLs, not email confirmation or other auth flows
+      if (
+        url.includes('auth/callback') &&
+        (url.includes('code=') || url.includes('access_token='))
+      ) {
+        try {
+          console.log('Processing OAuth callback in AuthContext');
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
+            url
+          );
+          if (error) {
+            console.error('exchangeCodeForSession error:', error);
+          } else if (data?.session) {
+            console.log('Successfully exchanged code for session');
+            setSession(data.session);
+            setUser(data.session.user ?? null);
+          }
+        } catch (e) {
+          console.error('OAuth deep link handling error:', e);
         }
-      } catch (e) {
-        console.error('Deep link handling error:', e);
+      } else {
+        console.log(
+          'Deep link not handled by AuthContext, letting route handle it:',
+          url
+        );
       }
     });
 
@@ -186,6 +202,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return { error: new Error('Sign-in failed') };
   };
 
+  const refreshSession = async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.error('Session refresh error:', error);
+        return;
+      }
+
+      if (data?.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+
+        // Also refresh the profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', data.session.user.id)
+          .single();
+
+        setProfile(profile);
+      }
+    } catch (error) {
+      console.error('Failed to refresh session:', error);
+    }
+  };
+
   const value: AuthContextType = {
     session,
     user,
@@ -196,6 +238,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signOut,
     resetPassword,
     signInWithGoogle,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm Your Email - NexaSuit</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.6;
+        color: #333333;
+        background-color: #f8fafc;
+        margin: 0;
+        padding: 0;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      }
+
+      .header {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        padding: 40px 30px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="20" cy="60" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="80" cy="40" r="0.5" fill="rgba(255,255,255,0.05)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+        opacity: 0.3;
+        animation: float 20s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0px) rotate(0deg);
+        }
+        50% {
+          transform: translateY(-10px) rotate(1deg);
+        }
+      }
+
+      .logo {
+        position: relative;
+        z-index: 2;
+      }
+
+      .logo-icon {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .logo-text {
+        color: #ffffff;
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        letter-spacing: -0.5px;
+      }
+
+      .logo-tagline {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .content {
+        padding: 50px 40px;
+        text-align: center;
+      }
+
+      .welcome-title {
+        font-size: 32px;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 16px;
+        line-height: 1.2;
+      }
+
+      .welcome-subtitle {
+        font-size: 18px;
+        color: #6b7280;
+        margin-bottom: 32px;
+        line-height: 1.5;
+      }
+
+      .message {
+        font-size: 16px;
+        color: #4b5563;
+        margin-bottom: 40px;
+        line-height: 1.6;
+        text-align: left;
+      }
+
+      .confirm-button {
+        display: inline-block;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #ffffff;
+        text-decoration: none;
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 16px;
+        margin: 20px 0;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+      }
+
+      .confirm-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+      }
+
+      .security-note {
+        background-color: #f3f4f6;
+        border-left: 4px solid #10b981;
+        padding: 20px;
+        margin: 30px 0;
+        border-radius: 0 8px 8px 0;
+      }
+
+      .security-note h4 {
+        color: #1f2937;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .security-note p {
+        color: #6b7280;
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .alternative-link {
+        margin-top: 30px;
+        padding: 20px;
+        background-color: #f9fafb;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .alternative-link p {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 10px;
+      }
+
+      .alternative-link code {
+        background-color: #ffffff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 13px;
+        color: #1f2937;
+        border: 1px solid #d1d5db;
+        word-break: break-all;
+        display: block;
+        margin-top: 8px;
+      }
+
+      .footer {
+        background-color: #1f2937;
+        padding: 40px 30px;
+        text-align: center;
+      }
+
+      .footer-content {
+        color: #9ca3af;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .footer-content strong {
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      .footer-links {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #374151;
+      }
+
+      .footer-links a {
+        color: #10b981;
+        text-decoration: none;
+        margin: 0 15px;
+        font-weight: 500;
+      }
+
+      .footer-links a:hover {
+        color: #34d399;
+      }
+
+      .social-links {
+        margin-top: 20px;
+      }
+
+      .social-links a {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        background-color: #374151;
+        border-radius: 8px;
+        margin: 0 8px;
+        line-height: 40px;
+        color: #9ca3af;
+        text-decoration: none;
+        transition: all 0.3s ease;
+      }
+
+      .social-links a:hover {
+        background-color: #10b981;
+        color: #ffffff;
+        transform: translateY(-2px);
+      }
+
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          margin: 0;
+          box-shadow: none;
+        }
+
+        .header {
+          padding: 30px 20px;
+        }
+
+        .content {
+          padding: 30px 20px;
+        }
+
+        .welcome-title {
+          font-size: 24px;
+        }
+
+        .welcome-subtitle {
+          font-size: 16px;
+        }
+
+        .confirm-button {
+          padding: 14px 24px;
+          font-size: 15px;
+        }
+
+        .footer {
+          padding: 30px 20px;
+        }
+
+        .footer-links a {
+          display: block;
+          margin: 8px 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <!-- Header -->
+      <div class="header">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="white"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="white"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="white"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+          <div class="logo-text">NexaSuit</div>
+          <div class="logo-tagline">Business CRM</div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="content">
+        <h1 class="welcome-title">Welcome to NexaSuit!</h1>
+        <p class="welcome-subtitle">
+          You're just one click away from accessing your business CRM
+        </p>
+
+        <div class="message">
+          <p>Hi there! 👋</p>
+          <p>
+            Thank you for signing up for NexaSuit. We're excited to help you
+            streamline your business operations and grow your client
+            relationships.
+          </p>
+          <p>
+            To complete your registration and secure your account, please verify
+            your email address by clicking the button below. After verification,
+            you'll be able to sign in to your account.
+          </p>
+        </div>
+
+        <a href="{{ .ConfirmationURL }}" class="confirm-button">
+          Verify Email Address
+        </a>
+
+        <div class="security-note">
+          <h4>🔒 Security First</h4>
+          <p>
+            This confirmation helps us verify that this email address belongs to
+            you and keeps your account secure. The link will expire in 24 hours
+            for your protection.
+          </p>
+        </div>
+
+        <div class="alternative-link">
+          <p><strong>Having trouble with the button?</strong></p>
+          <p>Copy and paste this link into your browser:</p>
+          <code>{{ .ConfirmationURL }}</code>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <div class="footer-content">
+          <strong>What's next?</strong><br />
+          After verifying your email, you'll be able to sign in and access:
+          <br /><br />
+          ✅ Manage leads and convert them to clients<br />
+          ✅ Track tasks and project progress<br />
+          ✅ Send professional emails with AI assistance<br />
+          ✅ Schedule meetings and manage your calendar<br />
+          ✅ Access powerful analytics and insights
+        </div>
+
+        <div class="footer-links">
+          <a href="https://nexasuit.com/help">Help Center</a>
+          <a href="https://nexasuit.com/privacy">Privacy Policy</a>
+          <a href="https://nexasuit.com/terms">Terms of Service</a>
+        </div>
+
+        <div class="social-links">
+          <a href="#" title="Twitter">𝕏</a>
+          <a href="#" title="LinkedIn">in</a>
+          <a href="#" title="Facebook">f</a>
+        </div>
+
+        <div
+          style="
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #374151;
+            color: #6b7280;
+            font-size: 12px;
+          "
+        >
+          <p>© 2024 NexaSuit. All rights reserved.</p>
+          <p>
+            This email was sent to {{ .Email }}. If you didn't create an
+            account, you can safely ignore this email.
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

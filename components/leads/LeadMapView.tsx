@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapView, Marker, Region } from './PlatformMapView';
+import { MapView, Marker, Region } from '../PlatformMapView';
 import * as Location from 'expo-location';
 import {
   X,

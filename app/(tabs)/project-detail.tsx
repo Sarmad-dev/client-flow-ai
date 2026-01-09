@@ -25,7 +25,7 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useProject, useUpdateProject } from '@/hooks/useProjects';
 import { useTasksByProject } from '@/hooks/useTasks';
-import { TaskCard } from '@/components/TaskCard';
+import { TaskCard } from '@/components/tasks/TaskCard';
 import { TaskCreateModal } from '@/components/tasks/TaskCreateModal';
 import { useToggleTaskStatus, useDeleteTask } from '@/hooks/useTasks';
 import { CustomAlert } from '@/components/CustomAlert';
