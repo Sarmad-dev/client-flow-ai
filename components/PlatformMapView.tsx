@@ -19,7 +19,7 @@ if (Platform.OS === 'web') {
     Marker = ReactNativeMaps.Marker;
   } catch (error) {
     // Fallback to web implementation if react-native-maps fails to load
-    const { WebMapView, WebMarker, WebRegion } = require('./WebMapComponents');
+    const { WebMapView, WebMarker } = require('./WebMapComponents');
     MapView = WebMapView;
     Marker = WebMarker;
   }

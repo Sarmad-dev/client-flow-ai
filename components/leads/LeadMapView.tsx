@@ -1,4 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from 'react';
 import {
   View,
   Text,
@@ -65,6 +71,7 @@ export function LeadMapView({
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
+  const isProgrammaticRegionUpdate = useRef(false);
 
   useEffect(() => {
     if (visible) {
@@ -80,12 +87,16 @@ export function LeadMapView({
       }
 
       const location = await Location.getCurrentPositionAsync({});
+      isProgrammaticRegionUpdate.current = true;
       setRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         latitudeDelta: 0.1,
         longitudeDelta: 0.1,
       });
+      setTimeout(() => {
+        isProgrammaticRegionUpdate.current = false;
+      }, 100);
     } catch (error) {
       console.error('Error getting location:', error);
     }
@@ -121,20 +132,25 @@ export function LeadMapView({
     }
   };
 
-  const handlePlaceSelect = async (place: PlaceResult) => {
+  const handlePlaceSelect = useCallback(async (place: PlaceResult) => {
     try {
       const detailedPlace = await getPlaceDetails(place.place_id);
       setSelectedPlace(detailedPlace);
+      isProgrammaticRegionUpdate.current = true;
       setRegion({
         latitude: detailedPlace.geometry.location.lat,
         longitude: detailedPlace.geometry.location.lng,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
+      // Reset the flag after a short delay to allow the region update to complete
+      setTimeout(() => {
+        isProgrammaticRegionUpdate.current = false;
+      }, 100);
     } catch (error) {
       console.error('Error getting place details:', error);
     }
-  };
+  }, []);
 
   const createLeadFromPlace = async (place: PlaceResult) => {
     try {
@@ -172,6 +188,60 @@ export function LeadMapView({
 
   const leadsWithLocation = leads.filter(
     (lead) => lead.location_lat && lead.location_lng
+  );
+
+  const handleRegionChangeComplete = (newRegion: Region) => {
+    // Only update region if it's a user-initiated change, not programmatic
+    if (!isProgrammaticRegionUpdate.current) {
+      setRegion(newRegion);
+    }
+  };
+
+  // Memoize markers to prevent unnecessary re-renders
+  const leadMarkers = useMemo(
+    () =>
+      leadsWithLocation.map((lead) => (
+        <Marker
+          key={lead.id}
+          coordinate={{
+            latitude: lead.location_lat!,
+            longitude: lead.location_lng!,
+          }}
+          title={lead.name}
+          description={lead.company}
+          onPress={() => setSelectedLead(lead)}
+        >
+          <View
+            style={[styles.leadMarker, { backgroundColor: colors.secondary }]}
+          >
+            <Building size={16} color="#FFFFFF" strokeWidth={2} />
+          </View>
+        </Marker>
+      )),
+    [leadsWithLocation, colors.secondary]
+  );
+
+  const searchResultMarkers = useMemo(
+    () =>
+      searchResults.map((place) => (
+        <Marker
+          key={place.place_id}
+          coordinate={{
+            latitude: place.geometry.location.lat,
+            longitude: place.geometry.location.lng,
+          }}
+          title={place.name}
+          description={place.formatted_address}
+          onPress={() => handlePlaceSelect(place)}
+        >
+          <View
+            style={[styles.searchMarker, { backgroundColor: colors.primary }]}
+          >
+            <MapPin size={16} color="#FFFFFF" strokeWidth={2} />
+          </View>
+        </Marker>
+      )),
+    [searchResults, colors.primary, handlePlaceSelect]
   );
 
   return (
@@ -279,55 +349,15 @@ export function LeadMapView({
         <MapView
           style={styles.map}
           region={region}
-          onRegionChangeComplete={setRegion}
+          onRegionChangeComplete={handleRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton
         >
           {/* Existing Leads */}
-          {leadsWithLocation.map((lead) => (
-            <Marker
-              key={lead.id}
-              coordinate={{
-                latitude: lead.location_lat!,
-                longitude: lead.location_lng!,
-              }}
-              title={lead.name}
-              description={lead.company}
-              onPress={() => setSelectedLead(lead)}
-            >
-              <View
-                style={[
-                  styles.leadMarker,
-                  { backgroundColor: colors.secondary },
-                ]}
-              >
-                <Building size={16} color="#FFFFFF" strokeWidth={2} />
-              </View>
-            </Marker>
-          ))}
+          {leadMarkers}
 
           {/* Search Results */}
-          {searchResults.map((place) => (
-            <Marker
-              key={place.place_id}
-              coordinate={{
-                latitude: place.geometry.location.lat,
-                longitude: place.geometry.location.lng,
-              }}
-              title={place.name}
-              description={place.formatted_address}
-              onPress={() => handlePlaceSelect(place)}
-            >
-              <View
-                style={[
-                  styles.searchMarker,
-                  { backgroundColor: colors.primary },
-                ]}
-              >
-                <MapPin size={16} color="#FFFFFF" strokeWidth={2} />
-              </View>
-            </Marker>
-          ))}
+          {searchResultMarkers}
 
           {/* Selected Place */}
           {selectedPlace && (

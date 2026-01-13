@@ -22,6 +22,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useProjects, useDeleteProject } from '@/hooks/useProjects';
 import { ProjectCard } from '@/components/ProjectCard';
 import { ProjectCreateModal } from '@/components/projects/ProjectCreateModal';
+import OrganizationSelector from '@/components/OrganizationSelector';
 import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 import type { ProjectRecord } from '@/types/task-management';
@@ -146,6 +147,16 @@ export default function ProjectsScreen() {
               <Plus size={20} color="white" strokeWidth={2} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Organization Selector */}
+        <View
+          style={[
+            styles.organizationContainer,
+            { backgroundColor: colors.surface },
+          ]}
+        >
+          <OrganizationSelector compact showLabel={false} />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -353,6 +364,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  organizationContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   content: {
     flex: 1,

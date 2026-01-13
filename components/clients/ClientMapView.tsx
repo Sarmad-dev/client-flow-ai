@@ -1,4 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from 'react';
 import {
   View,
   Text,
@@ -43,7 +49,7 @@ interface ClientMapViewProps {
   visible: boolean;
   onClose: () => void;
   clients: Client[];
-  onClientCreated: (client: any) => void;
+  onClientCreated?: (client: any) => void;
 }
 
 export function ClientMapView({
@@ -66,6 +72,7 @@ export function ClientMapView({
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
+  const isProgrammaticRegionUpdate = useRef(false);
 
   useEffect(() => {
     if (visible) {
@@ -81,12 +88,16 @@ export function ClientMapView({
       }
 
       const location = await Location.getCurrentPositionAsync({});
+      isProgrammaticRegionUpdate.current = true;
       setRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         latitudeDelta: 0.1,
         longitudeDelta: 0.1,
       });
+      setTimeout(() => {
+        isProgrammaticRegionUpdate.current = false;
+      }, 100);
     } catch (error) {
       console.error('Error getting location:', error);
     }
@@ -122,20 +133,25 @@ export function ClientMapView({
     }
   };
 
-  const handlePlaceSelect = async (place: PlaceResult) => {
+  const handlePlaceSelect = useCallback(async (place: PlaceResult) => {
     try {
       const detailedPlace = await getPlaceDetails(place.place_id);
       setSelectedPlace(detailedPlace);
+      isProgrammaticRegionUpdate.current = true;
       setRegion({
         latitude: detailedPlace.geometry.location.lat,
         longitude: detailedPlace.geometry.location.lng,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
+      // Reset the flag after a short delay to allow the region update to complete
+      setTimeout(() => {
+        isProgrammaticRegionUpdate.current = false;
+      }, 100);
     } catch (error) {
       console.error('Error getting place details:', error);
     }
-  };
+  }, []);
 
   const createClientFromPlace = async (place: PlaceResult) => {
     try {
@@ -162,7 +178,7 @@ export function ClientMapView({
       } as any);
 
       Alert.alert('Success', 'Client created from map selection!');
-      onClientCreated(client);
+      onClientCreated?.(client);
       setSelectedPlace(null);
       setSearchResults([]);
       setSearchQuery('');
@@ -173,6 +189,63 @@ export function ClientMapView({
   };
 
   const clientsWithLocation = clients.filter((client) => client.location);
+
+  const handleRegionChangeComplete = (newRegion: Region) => {
+    // Only update region if it's a user-initiated change, not programmatic
+    if (!isProgrammaticRegionUpdate.current) {
+      setRegion(newRegion);
+    }
+  };
+
+  // Memoize markers to prevent unnecessary re-renders
+  const clientMarkers = useMemo(
+    () =>
+      clientsWithLocation.map((client) => (
+        <Marker
+          key={client.id}
+          coordinate={{
+            latitude: client.location!.latitude,
+            longitude: client.location!.longitude,
+          }}
+          title={client.name}
+          description={client.company}
+          onPress={() => setSelectedClient(client)}
+        >
+          <View
+            style={[
+              styles.markerContainer,
+              { backgroundColor: colors.primary },
+            ]}
+          >
+            <User size={20} color="#FFFFFF" strokeWidth={2} />
+          </View>
+        </Marker>
+      )),
+    [clientsWithLocation, colors.primary]
+  );
+
+  const searchResultMarkers = useMemo(
+    () =>
+      searchResults.map((place) => (
+        <Marker
+          key={place.place_id}
+          coordinate={{
+            latitude: place.geometry.location.lat,
+            longitude: place.geometry.location.lng,
+          }}
+          title={place.name}
+          description={place.formatted_address}
+          onPress={() => handlePlaceSelect(place)}
+        >
+          <View
+            style={[styles.searchMarker, { backgroundColor: colors.secondary }]}
+          >
+            <MapPin size={16} color="#FFFFFF" strokeWidth={2} />
+          </View>
+        </Marker>
+      )),
+    [searchResults, colors.secondary, handlePlaceSelect]
+  );
 
   return (
     <Modal
@@ -279,55 +352,15 @@ export function ClientMapView({
           <MapView
             style={styles.map}
             region={region}
-            onRegionChangeComplete={setRegion}
+            onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation
             showsMyLocationButton
           >
             {/* Existing Clients */}
-            {clientsWithLocation.map((client) => (
-              <Marker
-                key={client.id}
-                coordinate={{
-                  latitude: client.location!.latitude,
-                  longitude: client.location!.longitude,
-                }}
-                title={client.name}
-                description={client.company}
-                onPress={() => setSelectedClient(client)}
-              >
-                <View
-                  style={[
-                    styles.markerContainer,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <User size={20} color="#FFFFFF" strokeWidth={2} />
-                </View>
-              </Marker>
-            ))}
+            {clientMarkers}
 
             {/* Search Results */}
-            {searchResults.map((place) => (
-              <Marker
-                key={place.place_id}
-                coordinate={{
-                  latitude: place.geometry.location.lat,
-                  longitude: place.geometry.location.lng,
-                }}
-                title={place.name}
-                description={place.formatted_address}
-                onPress={() => handlePlaceSelect(place)}
-              >
-                <View
-                  style={[
-                    styles.searchMarker,
-                    { backgroundColor: colors.secondary },
-                  ]}
-                >
-                  <MapPin size={16} color="#FFFFFF" strokeWidth={2} />
-                </View>
-              </Marker>
-            ))}
+            {searchResultMarkers}
 
             {/* Selected Place */}
             {selectedPlace && (

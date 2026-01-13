@@ -1,23 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { ProjectRecord } from '@/types/task-management';
 
 const projectsKeys = {
   all: ['projects'] as const,
-  list: (userId?: string) => [...projectsKeys.all, 'list', userId] as const,
+  list: (userId?: string, organizationId?: string) =>
+    [...projectsKeys.all, 'list', userId, organizationId] as const,
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
 };
 
 export function useProjects() {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useQuery({
-    queryKey: projectsKeys.list(userId),
+    queryKey: projectsKeys.list(userId, organizationId),
     queryFn: async (): Promise<ProjectRecord[]> => {
-      if (!userId) return [];
+      if (!userId || !organizationId) return [];
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -38,6 +42,7 @@ export function useProjects() {
         `
         )
         .eq('user_id', profile.id)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -53,18 +58,20 @@ export function useProjects() {
 
       return projectsWithCounts as ProjectRecord[];
     },
-    enabled: !!userId,
+    enabled: !!userId && !!organizationId,
   });
 }
 
 export function useProject(projectId: string) {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useQuery({
     queryKey: projectsKeys.detail(projectId),
     queryFn: async (): Promise<ProjectRecord | null> => {
-      if (!userId || !projectId) return null;
+      if (!userId || !projectId || !organizationId) return null;
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -89,19 +96,22 @@ export function useProject(projectId: string) {
         )
         .eq('id', projectId)
         .eq('user_id', profile.id)
+        .eq('organization_id', organizationId)
         .single();
 
       if (error) throw error;
 
       return data as ProjectRecord;
     },
-    enabled: !!userId && !!projectId,
+    enabled: !!userId && !!projectId && !!organizationId,
   });
 }
 
 export function useCreateProject() {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
   const queryClient = useQueryClient();
   const { incrementUsage } = useSubscription();
 
@@ -113,7 +123,8 @@ export function useCreateProject() {
         lead_id?: string | null;
       }
     ): Promise<ProjectRecord> => {
-      if (!userId) throw new Error('Not authenticated');
+      if (!userId || !organizationId)
+        throw new Error('Not authenticated or no organization selected');
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -127,6 +138,7 @@ export function useCreateProject() {
         .from('projects')
         .insert({
           user_id: profile.id,
+          organization_id: organizationId,
           name: payload.name,
           description: payload.description ?? null,
           client_id: payload.client_id ?? null,
@@ -156,7 +168,9 @@ export function useCreateProject() {
 export function useUpdateProject() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useMutation({
     mutationFn: async (
@@ -175,15 +189,17 @@ export function useUpdateProject() {
       return data as ProjectRecord;
     },
     onMutate: async (payload) => {
-      await queryClient.cancelQueries({ queryKey: projectsKeys.list(userId) });
+      await queryClient.cancelQueries({
+        queryKey: projectsKeys.list(userId, organizationId),
+      });
 
       const previousProjects = queryClient.getQueryData<ProjectRecord[]>(
-        projectsKeys.list(userId)
+        projectsKeys.list(userId, organizationId)
       );
 
       if (previousProjects) {
         queryClient.setQueryData<ProjectRecord[]>(
-          projectsKeys.list(userId),
+          projectsKeys.list(userId, organizationId),
           (old) => {
             if (!old) return old;
             return old.map((project) =>
@@ -198,7 +214,7 @@ export function useUpdateProject() {
     onError: (err, payload, context) => {
       if (context?.previousProjects) {
         queryClient.setQueryData<ProjectRecord[]>(
-          projectsKeys.list(userId),
+          projectsKeys.list(userId, organizationId),
           context.previousProjects
         );
       }
@@ -213,6 +229,7 @@ export function useUpdateProject() {
 export function useDeleteProject() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
 
   return useMutation({
     mutationFn: async (projectId: string) => {
@@ -228,7 +245,8 @@ export function useDeleteProject() {
         .from('projects')
         .delete()
         .eq('id', projectId)
-        .eq('user_id', profile.id);
+        .eq('user_id', profile.id)
+        .eq('organization_id', currentOrganization?.id);
 
       if (error) throw error;
     },
@@ -240,12 +258,14 @@ export function useDeleteProject() {
 
 export function useProjectsByClient(clientId: string) {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useQuery({
-    queryKey: [...projectsKeys.all, 'by-client', clientId],
+    queryKey: [...projectsKeys.all, 'by-client', clientId, organizationId],
     queryFn: async (): Promise<ProjectRecord[]> => {
-      if (!userId || !clientId) return [];
+      if (!userId || !clientId || !organizationId) return [];
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -266,6 +286,7 @@ export function useProjectsByClient(clientId: string) {
         )
         .eq('user_id', profile.id)
         .eq('client_id', clientId)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -280,18 +301,20 @@ export function useProjectsByClient(clientId: string) {
 
       return projectsWithCounts as ProjectRecord[];
     },
-    enabled: !!userId && !!clientId,
+    enabled: !!userId && !!clientId && !!organizationId,
   });
 }
 
 export function useProjectsByLead(leadId: string) {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useQuery({
-    queryKey: [...projectsKeys.all, 'by-lead', leadId],
+    queryKey: [...projectsKeys.all, 'by-lead', leadId, organizationId],
     queryFn: async (): Promise<ProjectRecord[]> => {
-      if (!userId || !leadId) return [];
+      if (!userId || !leadId || !organizationId) return [];
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -312,6 +335,7 @@ export function useProjectsByLead(leadId: string) {
         )
         .eq('user_id', profile.id)
         .eq('lead_id', leadId)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -326,6 +350,6 @@ export function useProjectsByLead(leadId: string) {
 
       return projectsWithCounts as ProjectRecord[];
     },
-    enabled: !!userId && !!leadId,
+    enabled: !!userId && !!leadId && !!organizationId,
   });
 }

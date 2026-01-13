@@ -445,12 +445,32 @@ export default function ProjectDetailScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Tasks ({tasks.length})
             </Text>
-            <TouchableOpacity
-              onPress={() => setShowTaskForm(true)}
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-            >
-              <Plus size={20} color={colors.surface} strokeWidth={2} />
-            </TouchableOpacity>
+            <View style={styles.taskActions}>
+              {tasks.length > 0 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push(`/(tabs)/tasks?projectId=${projectId}`)
+                  }
+                  style={[
+                    styles.viewAllButton,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.viewAllText, { color: colors.text }]}>
+                    View All
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setShowTaskForm(true)}
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+              >
+                <Plus size={20} color={colors.surface} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {tasksLoading ? (
@@ -471,7 +491,7 @@ export default function ProjectDetailScreen() {
             </View>
           ) : (
             <View style={styles.tasksList}>
-              {tasks.map((task) => (
+              {tasks.slice(0, 3).map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -482,6 +502,34 @@ export default function ProjectDetailScreen() {
                   onDelete={() => handleDeleteTask(task.id)}
                 />
               ))}
+              {tasks.length > 3 && (
+                <TouchableOpacity
+                  style={[
+                    styles.showMoreButton,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() =>
+                    router.push(`/(tabs)/tasks?projectId=${projectId}`)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.showMoreText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    +{tasks.length - 3} more tasks
+                  </Text>
+                  <Text
+                    style={[styles.showMoreAction, { color: colors.primary }]}
+                  >
+                    View All
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -612,6 +660,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  taskActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
   addButton: {
     width: 36,
     height: 36,
@@ -722,6 +785,23 @@ const styles = StyleSheet.create({
   // Tasks Section
   tasksList: {
     gap: 8,
+  },
+  showMoreButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  showMoreText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  showMoreAction: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',

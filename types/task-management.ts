@@ -10,6 +10,7 @@ export type { TaskRecord } from '@/hooks/useTasks';
 export interface ProjectRecord {
   id: string;
   user_id: string;
+  organization_id: string;
   client_id: string | null;
   lead_id: string | null;
   name: string;

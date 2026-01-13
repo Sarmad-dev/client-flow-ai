@@ -100,8 +100,17 @@ ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for organizations
 CREATE POLICY "Users can view organizations they own"
-  ON organizations FOR SELECT
-  USING (owner_id = auth.uid());
+ON public.organizations
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.user_id = auth.uid()
+      AND p.id = organizations.owner_id
+  )
+);
+
 
 CREATE POLICY "Users can view organizations they are members of"
   ON organizations FOR SELECT
@@ -128,18 +137,30 @@ CREATE POLICY "Only owners can delete organizations"
 
 -- RLS Policies for organization_members
 CREATE POLICY "Users can view their own memberships"
-  ON organization_members FOR SELECT
-  USING (user_id = auth.uid());
+ON public.organization_members
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.user_id = auth.uid()
+      AND p.id = organization_members.user_id
+  )
+);
 
 CREATE POLICY "Users can view members of organizations they own"
-  ON organization_members FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM organizations o
-      WHERE o.id = organization_members.organization_id
-      AND o.owner_id = auth.uid()
-    )
-  );
+ON public.organization_members
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.organizations o
+    JOIN public.profiles p ON p.id = o.owner_id
+    WHERE p.user_id = auth.uid()
+      AND o.id = organization_members.organization_id
+  )
+);
+
 
 CREATE POLICY "Owners can invite members"
   ON organization_members FOR INSERT

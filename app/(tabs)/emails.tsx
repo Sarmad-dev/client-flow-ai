@@ -23,6 +23,8 @@ import {
   TrendingUp,
   Mail,
   ChevronRight,
+  Shield,
+  UserX,
 } from 'lucide-react-native';
 
 export default function EmailsScreen() {
@@ -90,6 +92,20 @@ export default function EmailsScreen() {
       description: 'View performance metrics for email sequences',
       route: '/(tabs)/email-sequence-analytics',
       color: '#14B8A6',
+    },
+    {
+      icon: Shield,
+      title: 'Deliverability',
+      description: 'Monitor email delivery rates and reputation',
+      route: '/(tabs)/email-deliverability',
+      color: '#EF4444',
+    },
+    {
+      icon: UserX,
+      title: 'Suppression List',
+      description: 'Manage blocked and unsubscribed email addresses',
+      route: '/(tabs)/email-suppression',
+      color: '#6B7280',
     },
   ];
 

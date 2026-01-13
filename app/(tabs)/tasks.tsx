@@ -26,7 +26,15 @@ import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 import { SubscriptionModal } from '@/components/SubscriptionModal';
 import TaskSuggestions from '@/components/tasks/TaskSuggestions';
 import * as Notifications from 'expo-notifications';
-import { Trash2, ArrowLeft, FolderOpen } from 'lucide-react-native';
+import {
+  Trash2,
+  ArrowLeft,
+  FolderOpen,
+  BarChart3,
+  Kanban,
+  GitBranch,
+  Filter,
+} from 'lucide-react-native';
 import { CustomAlert } from '@/components/CustomAlert';
 
 export default function ProjectTasksScreen() {
@@ -220,18 +228,76 @@ export default function ProjectTasksScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            onPress={() => {
-              if (guardTaskCreation('')) {
-                setShowTaskForm(true);
-              }
-            }}
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
-          >
-            <Text style={[styles.addButtonText, { color: colors.surface }]}>
-              +
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => setShowFilter(!showFilter)}
+              style={[
+                styles.headerActionButton,
+                {
+                  backgroundColor: showFilter
+                    ? colors.primary + '15'
+                    : colors.background,
+                },
+              ]}
+            >
+              <Filter
+                size={20}
+                color={showFilter ? colors.primary : colors.textSecondary}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/task-analytics')}
+              style={[
+                styles.headerActionButton,
+                { backgroundColor: colors.background },
+              ]}
+            >
+              <BarChart3
+                size={20}
+                color={colors.textSecondary}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/task-board')}
+              style={[
+                styles.headerActionButton,
+                { backgroundColor: colors.background },
+              ]}
+            >
+              <Kanban size={20} color={colors.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/dependency-graph')}
+              style={[
+                styles.headerActionButton,
+                { backgroundColor: colors.background },
+              ]}
+            >
+              <GitBranch
+                size={20}
+                color={colors.textSecondary}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                if (guardTaskCreation('')) {
+                  setShowTaskForm(true);
+                }
+              }}
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.addButtonText, { color: colors.surface }]}>
+                +
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <TaskSearchBar value={searchQuery} onChangeText={setSearchQuery} />
@@ -495,6 +561,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButton: {
     width: 40,

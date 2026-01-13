@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Modal,
-  TextInput,
   TouchableOpacity,
   FlatList,
   Alert,
@@ -16,7 +15,7 @@ import {
   useTaskAssignments,
   useAssignTask,
   useUnassignTask,
-  useAvailableUsers,
+  useAssignableMembersForTask,
 } from '@/hooks/useTaskAssignments';
 import type { TaskAssignment } from '@/types/task-management';
 
@@ -34,64 +33,32 @@ export default function TaskAssignmentModal({
   taskTitle,
 }: TaskAssignmentModalProps) {
   const { colors } = useTheme();
-  const [emailInput, setEmailInput] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  const [showUserList, setShowUserList] = useState(false);
 
   // Hooks
   const { data: assignments = [], isLoading: assignmentsLoading } =
     useTaskAssignments(taskId);
-  const { data: availableUsers = [], isLoading: usersLoading } =
-    useAvailableUsers();
+  const { data: availableMembers = [], isLoading: membersLoading } =
+    useAssignableMembersForTask(taskId);
   const assignTaskMutation = useAssignTask();
   const unassignTaskMutation = useUnassignTask();
 
-  // Filter out already assigned users
+  // Filter out already assigned users (this is now handled by useAssignableMembersForTask)
   const assignedUserIds = assignments.map((a) => a.user_id);
-  const unassignedUsers = availableUsers.filter(
-    (user: any) => !assignedUserIds.includes(user.id)
-  );
 
-  const handleAssignUser = async (userEmail: string) => {
+  const handleAssignMember = async (member: any) => {
     setIsAssigning(true);
     try {
       await assignTaskMutation.mutateAsync({
-        task_id: taskId,
-        user_email: userEmail,
+        taskId: taskId,
+        userId: member.user_id, // This should be the profile ID
       });
 
-      Alert.alert('Success', `User assigned to "${taskTitle}"`);
-      setShowUserList(false);
+      Alert.alert('Success', `Member assigned to "${taskTitle}"`);
     } catch (error) {
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to assign user'
-      );
-      console.log('Error Message: ', error);
-    } finally {
-      setIsAssigning(false);
-    }
-  };
-
-  const handleAssignByEmail = async () => {
-    if (!emailInput.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
-      return;
-    }
-
-    setIsAssigning(true);
-    try {
-      await assignTaskMutation.mutateAsync({
-        task_id: taskId,
-        user_email: emailInput.trim(),
-      });
-
-      setEmailInput('');
-      Alert.alert('Success', `User assigned to "${taskTitle}"`);
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to assign user'
+        error instanceof Error ? error.message : 'Failed to assign member'
       );
       console.log('Error Message: ', error);
     } finally {
@@ -113,8 +80,8 @@ export default function TaskAssignmentModal({
           onPress: async () => {
             try {
               await unassignTaskMutation.mutateAsync({
-                task_id: taskId,
-                user_id: assignment.user_id,
+                taskId: taskId,
+                userId: assignment.user_id,
               });
               Alert.alert('Success', 'User removed from task');
             } catch (error) {
@@ -149,25 +116,28 @@ export default function TaskAssignmentModal({
     </View>
   );
 
-  const renderAvailableUser = ({ item }: { item: any }) => (
+  const renderAvailableMember = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[styles.userItem, { backgroundColor: colors.surface }]}
-      onPress={() => handleAssignUser(item.email)}
+      onPress={() => handleAssignMember(item)}
       disabled={isAssigning}
     >
       <View
         style={[styles.userAvatar, { backgroundColor: colors.primary + '20' }]}
       >
         <Text style={[styles.avatarText, { color: colors.primary }]}>
-          {(item.full_name || item.email)[0].toUpperCase()}
+          {(item.user?.full_name || item.user?.email || 'U')[0].toUpperCase()}
         </Text>
       </View>
       <View style={styles.userInfo}>
         <Text style={[styles.userName, { color: colors.text }]}>
-          {item.full_name || item.email}
+          {item.user?.full_name || item.user?.email}
         </Text>
         <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-          {item.email}
+          {item.user?.email}
+        </Text>
+        <Text style={[styles.userRole, { color: colors.textSecondary }]}>
+          {item.role}
         </Text>
       </View>
       <UserPlus size={20} color={colors.primary} />
@@ -205,8 +175,8 @@ export default function TaskAssignmentModal({
             Assign Team Member
           </Text>
 
-          {/* Available Users List */}
-          {usersLoading ? (
+          {/* Available Members List */}
+          {membersLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={colors.primary} />
               <Text
@@ -215,11 +185,11 @@ export default function TaskAssignmentModal({
                 Loading team members...
               </Text>
             </View>
-          ) : unassignedUsers.length > 0 ? (
+          ) : availableMembers.length > 0 ? (
             <View style={styles.availableUsersContainer}>
               <FlatList
-                data={unassignedUsers}
-                renderItem={renderAvailableUser}
+                data={availableMembers}
+                renderItem={renderAvailableMember}
                 keyExtractor={(item: any) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.availableUsersList}
@@ -231,55 +201,10 @@ export default function TaskAssignmentModal({
               <Text
                 style={[styles.noUsersText, { color: colors.textSecondary }]}
               >
-                {availableUsers.length === 0
-                  ? 'No team members available. Add members to your organization first.'
-                  : 'All team members are already assigned to this task.'}
+                All organization members are already assigned to this task.
               </Text>
             </View>
           )}
-
-          {/* Manual Email Input (fallback) */}
-          <View style={styles.manualSection}>
-            <Text style={[styles.manualLabel, { color: colors.textSecondary }]}>
-              Or assign by email
-            </Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[
-                  styles.emailInput,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="Enter email address"
-                placeholderTextColor={colors.textSecondary}
-                value={emailInput}
-                onChangeText={setEmailInput}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.assignButton,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity: isAssigning || !emailInput.trim() ? 0.5 : 1,
-                  },
-                ]}
-                onPress={handleAssignByEmail}
-                disabled={isAssigning || !emailInput.trim()}
-              >
-                {isAssigning ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <UserPlus size={20} color="white" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
         {/* Current Assignments */}
@@ -385,6 +310,11 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
   },
+  userRole: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,35 +331,6 @@ const styles = StyleSheet.create({
   noUsersText: {
     fontSize: 14,
     textAlign: 'center',
-  },
-  manualSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  manualLabel: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  emailInput: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-  },
-  assignButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   assignmentsSection: {
     flex: 1,

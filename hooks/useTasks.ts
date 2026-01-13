@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import type {
   SubtaskRecord,
@@ -14,6 +15,7 @@ import type {
 export interface TaskRecord {
   id: string;
   user_id: string;
+  organization_id: string;
   client_id: string | null;
   project_id: string | null;
   title: string;
@@ -49,16 +51,22 @@ export interface TaskRecord {
 
 const tasksKeys = {
   all: ['tasks'] as const,
-  list: (userId?: string) => [...tasksKeys.all, 'list', userId] as const,
+  list: (userId?: string, organizationId?: string, projectId?: string) =>
+    [...tasksKeys.all, 'list', userId, organizationId, projectId] as const,
+  byProject: (projectId?: string, organizationId?: string) =>
+    [...tasksKeys.all, 'by-project', projectId, organizationId] as const,
 };
 
-export function useTasks() {
+export function useTasks(projectId?: string) {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
+
   return useQuery({
-    queryKey: tasksKeys.list(userId),
+    queryKey: tasksKeys.list(userId, organizationId, projectId),
     queryFn: async (): Promise<TaskRecord[]> => {
-      if (!userId) return [];
+      if (!userId || !organizationId) return [];
 
       const { data: profiles } = await supabase
         .from('profiles')
@@ -66,25 +74,34 @@ export function useTasks() {
         .eq('user_id', userId)
         .single();
 
-      console.log('Profiles: ', profiles);
-
-      const { data, error } = await supabase
+      let query = supabase
         .from('tasks')
         .select('*, clients(name, company), project:projects(name, status)')
         .eq('user_id', profiles?.id)
-        .order('created_at', { ascending: false });
+        .eq('organization_id', organizationId);
+
+      // Add project filter if projectId is provided
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+
+      const { data, error } = await query.order('created_at', {
+        ascending: false,
+      });
 
       console.log('Data: ', error);
       if (error) throw error;
       return (data ?? []) as unknown as TaskRecord[];
     },
-    enabled: !!userId,
+    enabled: !!userId && !!organizationId,
   });
 }
 
 export function useCreateTask() {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
   const queryClient = useQueryClient();
   const { incrementUsage } = useSubscription();
 
@@ -97,17 +114,35 @@ export function useCreateTask() {
         due_date?: string | null;
       }
     ): Promise<TaskRecord> => {
-      if (!userId) throw new Error('Not authenticated');
+      if (!userId || !organizationId)
+        throw new Error('Not authenticated or no organization selected');
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
         .eq('user_id', userId)
         .single();
 
+      // If project_id is provided, verify it belongs to the current organization
+      if (payload.project_id) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('organization_id')
+          .eq('id', payload.project_id)
+          .single();
+
+        if (!project || project.organization_id !== organizationId) {
+          throw new Error(
+            'Project does not belong to the current organization'
+          );
+        }
+      }
+
       const { data, error } = await supabase
         .from('tasks')
         .insert({
           user_id: profile?.id,
+          organization_id: organizationId,
           title: payload.title,
           description: payload.description ?? null,
           client_id: payload.client_id ?? null,
@@ -135,7 +170,9 @@ export function useCreateTask() {
 export function useToggleTaskStatus() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useMutation({
     mutationFn: async (payload: { id: string; to: TaskRecord['status'] }) => {
@@ -204,17 +241,19 @@ export function useToggleTaskStatus() {
     },
     onMutate: async (payload) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: tasksKeys.list(userId) });
+      await queryClient.cancelQueries({
+        queryKey: tasksKeys.list(userId, organizationId),
+      });
 
       // Snapshot the previous value
       const previousTasks = queryClient.getQueryData<TaskRecord[]>(
-        tasksKeys.list(userId)
+        tasksKeys.list(userId, organizationId)
       );
 
       // Optimistically update to the new value
       if (previousTasks) {
         queryClient.setQueryData<TaskRecord[]>(
-          tasksKeys.list(userId),
+          tasksKeys.list(userId, organizationId),
           (old) => {
             if (!old) return old;
             return old.map((task) =>
@@ -230,7 +269,7 @@ export function useToggleTaskStatus() {
       // Roll back on error
       if (context?.previousTasks) {
         queryClient.setQueryData<TaskRecord[]>(
-          tasksKeys.list(userId),
+          tasksKeys.list(userId, organizationId),
           context.previousTasks
         );
       }
@@ -246,7 +285,9 @@ export function useToggleTaskStatus() {
 export function useUpdateTask() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useMutation({
     mutationFn: async (
@@ -292,17 +333,19 @@ export function useUpdateTask() {
     },
     onMutate: async (payload) => {
       // Cancel any outgoing refetches to avoid overwriting optimistic update
-      await queryClient.cancelQueries({ queryKey: tasksKeys.list(userId) });
+      await queryClient.cancelQueries({
+        queryKey: tasksKeys.list(userId, organizationId),
+      });
 
       // Snapshot the previous value
       const previousTasks = queryClient.getQueryData<TaskRecord[]>(
-        tasksKeys.list(userId)
+        tasksKeys.list(userId, organizationId)
       );
 
       // Optimistically update to the new value
       if (previousTasks) {
         queryClient.setQueryData<TaskRecord[]>(
-          tasksKeys.list(userId),
+          tasksKeys.list(userId, organizationId),
           (old) => {
             if (!old) return old;
             return old.map((task) =>
@@ -319,7 +362,7 @@ export function useUpdateTask() {
       // If the mutation fails, use the context returned from onMutate to roll back
       if (context?.previousTasks) {
         queryClient.setQueryData<TaskRecord[]>(
-          tasksKeys.list(userId),
+          tasksKeys.list(userId, organizationId),
           context.previousTasks
         );
       }
@@ -357,21 +400,38 @@ export function useDeleteTask() {
 }
 
 // Enhanced useTasks hook with subtask management operations
-export function useTasksWithSubtasks() {
+export function useTasksWithSubtasks(projectId?: string) {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
-  return useQuery({
-    queryKey: [...tasksKeys.all, 'with-subtasks', userId] as const,
-    queryFn: async (): Promise<TaskRecord[]> => {
-      if (!userId) return [];
+  const organizationId = currentOrganization?.id;
 
-      // Fetch tasks with their subtasks and dependencies
-      const { data, error } = await supabase
+  return useQuery({
+    queryKey: [
+      ...tasksKeys.all,
+      'with-subtasks',
+      userId,
+      organizationId,
+      projectId,
+    ] as const,
+    queryFn: async (): Promise<TaskRecord[]> => {
+      if (!userId || !organizationId) return [];
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (!profile) return [];
+
+      let query = supabase
         .from('tasks')
         .select(
           `
           *,
           clients(name, company),
+          project:projects(name, status),
           subtasks:tasks!parent_task_id(*),
           dependencies:task_dependencies!task_id(
             id,
@@ -380,12 +440,30 @@ export function useTasksWithSubtasks() {
           ),
           time_entries(*),
           comments:task_comments(*),
-          assignments:task_assignments(*, user:auth.users(id, email, raw_user_meta_data))
+          assignments:task_assignments(
+            *,
+            user:profiles!user_id(
+              id,
+              user_id,
+              email,
+              full_name,
+              avatar_url
+            )
+          )
         `
         )
-        .eq('user_id', userId)
-        .is('parent_task_id', null) // Only get parent tasks, subtasks will be nested
-        .order('created_at', { ascending: false });
+        .eq('user_id', profile.id)
+        .eq('organization_id', organizationId)
+        .is('parent_task_id', null); // Only get parent tasks, subtasks will be nested
+
+      // Add project filter if projectId is provided
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+
+      const { data, error } = await query.order('created_at', {
+        ascending: false,
+      });
 
       if (error) throw error;
 
@@ -408,7 +486,7 @@ export function useTasksWithSubtasks() {
 
       return tasksWithProgress as TaskRecord[];
     },
-    enabled: !!userId,
+    enabled: !!userId && !!organizationId,
   });
 }
 
@@ -573,12 +651,14 @@ export function useDeleteTaskDependency() {
 
 export function useTasksByProject(projectId: string) {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const userId = user?.id;
+  const organizationId = currentOrganization?.id;
 
   return useQuery({
-    queryKey: [...tasksKeys.all, 'by-project', projectId],
+    queryKey: tasksKeys.byProject(projectId, organizationId),
     queryFn: async (): Promise<TaskRecord[]> => {
-      if (!userId || !projectId) return [];
+      if (!userId || !projectId || !organizationId) return [];
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -588,17 +668,43 @@ export function useTasksByProject(projectId: string) {
 
       if (!profile) return [];
 
+      // Verify the project belongs to the current organization
+      const { data: project } = await supabase
+        .from('projects')
+        .select('organization_id')
+        .eq('id', projectId)
+        .single();
+
+      if (!project || project.organization_id !== organizationId) return [];
+
       const { data, error } = await supabase
         .from('tasks')
-        .select('*, clients(name, company), project:projects(name, status)')
+        .select(
+          `
+          *, 
+          clients(name, company), 
+          project:projects(name, status),
+          assignments:task_assignments(
+            id,
+            user:profiles!user_id(
+              id,
+              user_id,
+              email,
+              full_name,
+              avatar_url
+            )
+          )
+        `
+        )
         .eq('user_id', profile.id)
         .eq('project_id', projectId)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return (data ?? []) as unknown as TaskRecord[];
     },
-    enabled: !!userId && !!projectId,
+    enabled: !!userId && !!projectId && !!organizationId,
   });
 }
 
@@ -687,4 +793,20 @@ async function checkCircularDependency(
     console.error('Error checking circular dependency:', error);
     return false;
   }
+}
+
+// Convenience hooks for better API
+// Hook for getting all tasks in the organization (no project filter)
+export function useAllOrganizationTasks() {
+  return useTasks(); // This will get all tasks in the organization
+}
+
+// Hook for getting tasks for a specific project
+export function useProjectTasks(projectId: string) {
+  return useTasks(projectId); // This will get tasks filtered by project
+}
+
+// Hook for getting tasks with subtasks for a specific project
+export function useProjectTasksWithSubtasks(projectId: string) {
+  return useTasksWithSubtasks(projectId);
 }
