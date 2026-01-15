@@ -58,11 +58,12 @@ export const getSubscriptionAnalytics = (
     clients: calculateUsagePercentage(currentUsage.clients, limits.maxClients),
     tasks: calculateUsagePercentage(
       currentUsage.tasks,
-      limits.maxTasksPerClient
+      limits.maxTasksPerProjects
     ),
-    emails: calculateUsagePercentage(
-      currentUsage.emailsSent,
-      limits.maxEmailsPerClient + limits.maxEmailsPerLead
+    emails: calculateUsagePercentage(currentUsage.emails, limits.maxEmails),
+    projects: calculateUsagePercentage(
+      currentUsage.projects,
+      limits.maxProjects
     ),
   };
 

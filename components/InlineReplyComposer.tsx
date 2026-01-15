@@ -17,6 +17,8 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useSendEmail } from '@/hooks/useEmails';
 import { useAlert } from '@/contexts/CustomAlertContext';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import { Mail, Send, X, Type } from 'lucide-react-native';
 
 interface InlineReplyComposerProps {
@@ -46,6 +48,12 @@ export default function InlineReplyComposer({
   const { showAlert } = useAlert();
   const sendEmail = useSendEmail();
   const richRef = useRef<RichEditor>(null);
+  const {
+    guardEmailSending,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
 
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState('');
@@ -65,6 +73,11 @@ export default function InlineReplyComposer({
         title: 'Cannot Send',
         message: 'Please enter a message before sending.',
       });
+      return;
+    }
+
+    // Check subscription limits
+    if (!guardEmailSending()) {
       return;
     }
 
@@ -297,6 +310,13 @@ export default function InlineReplyComposer({
         )}
       </TouchableOpacity>
     </ScrollView>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
   );
 }
 

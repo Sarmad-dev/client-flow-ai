@@ -29,6 +29,8 @@ import {
 } from '@/hooks/useOrganizations';
 import { useAlert } from '@/contexts/CustomAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 export default function OrganizationDetailScreen() {
   const { colors } = useTheme();
@@ -43,6 +45,12 @@ export default function OrganizationDetailScreen() {
   const { organizations } = useOrganizations();
   const { members, isLoading, inviteMember, removeMember, leaveOrganization } =
     useOrganizationMembers(id);
+  const {
+    guardAddTeamMember,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
 
   const organization = organizations.find((org) => org.id === id);
   const userRole = organization?.user_role;
@@ -51,6 +59,12 @@ export default function OrganizationDetailScreen() {
 
   const handleInvite = async () => {
     if (!email.trim()) return;
+
+    // Check subscription limits
+    const canInvite = await guardAddTeamMember(id!);
+    if (!canInvite) {
+      return;
+    }
 
     try {
       await inviteMember.mutateAsync({
@@ -422,6 +436,13 @@ export default function OrganizationDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </SafeAreaView>
   );
 }

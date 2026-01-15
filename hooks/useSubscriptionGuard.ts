@@ -9,6 +9,7 @@ export const useSubscriptionGuard = () => {
     canCreateProject,
     canSendEmail,
     canAccessMeetings,
+    canAddTeamMember,
     canAccessAnalytics,
     userSubscription,
   } = useSubscription();
@@ -28,6 +29,19 @@ export const useSubscriptionGuard = () => {
     return true;
   };
 
+  const checkAndShowModalAsync = async (
+    feature: string,
+    check: () => Promise<boolean>
+  ): Promise<boolean> => {
+    const result = await check();
+    if (!result) {
+      setModalFeatureName(feature);
+      setShowSubscriptionModal(true);
+      return false;
+    }
+    return true;
+  };
+
   const guardLeadCreation = (): boolean => {
     return checkAndShowModal('Lead Creation', canCreateLead);
   };
@@ -36,16 +50,26 @@ export const useSubscriptionGuard = () => {
     return checkAndShowModal('Client Creation', canCreateClient);
   };
 
-  const guardTaskCreation = (clientId: string): boolean => {
-    return checkAndShowModal('Task Creation', () => canCreateTask(clientId));
+  const guardAddTeamMember = async (
+    organizationId: string
+  ): Promise<boolean> => {
+    return checkAndShowModalAsync('Add Team Member', () =>
+      canAddTeamMember(organizationId)
+    );
+  };
+
+  const guardTaskCreation = async (projectId: string): Promise<boolean> => {
+    return checkAndShowModalAsync('Task Creation', () =>
+      canCreateTask(projectId)
+    );
   };
 
   const guardProjectCreation = (): boolean => {
     return checkAndShowModal('Project Creation', canCreateProject);
   };
 
-  const guardEmailSending = (type: 'client' | 'lead', id: string): boolean => {
-    return checkAndShowModal('Email Sending', () => canSendEmail(type, id));
+  const guardEmailSending = (): boolean => {
+    return checkAndShowModal('Email Sending', canSendEmail);
   };
 
   const guardMeetingsAccess = (): boolean => {
@@ -65,6 +89,7 @@ export const useSubscriptionGuard = () => {
     guardEmailSending,
     guardMeetingsAccess,
     guardAnalyticsAccess,
+    guardAddTeamMember,
 
     // Modal control
     showSubscriptionModal,
@@ -80,5 +105,6 @@ export const useSubscriptionGuard = () => {
     canSendEmail,
     canAccessMeetings,
     canAccessAnalytics,
+    canAddTeamMember,
   };
 };

@@ -28,6 +28,7 @@ import {
   EmailTemplate,
 } from '@/hooks/useEmailTemplates';
 import { useAlert } from '@/contexts/CustomAlertContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import {
   Plus,
   Search,
@@ -76,6 +77,7 @@ export default function EmailTemplatesManager({
   const createTemplate = useCreateEmailTemplate();
   const updateTemplate = useUpdateEmailTemplate();
   const deleteTemplate = useDeleteEmailTemplate();
+  const { userSubscription, getFeatureLimit } = useSubscription();
 
   // Determine which templates to display
   const displayedTemplates = useMemo(() => {
@@ -92,6 +94,16 @@ export default function EmailTemplatesManager({
   }} ::-webkit-scrollbar{width:0;height:0}`;
 
   const handleCreateNew = () => {
+    // Check template limit
+    const maxTemplates = getFeatureLimit('maxEmailTemplates');
+    if (maxTemplates !== -1 && allTemplates.length >= maxTemplates) {
+      showAlert({
+        title: 'Template Limit Reached',
+        message: `You have reached the maximum of ${maxTemplates} email templates. Upgrade to Pro for more templates.`,
+      });
+      return;
+    }
+
     setEditingTemplate(null);
     setTemplateName('');
     setTemplateSubject('');

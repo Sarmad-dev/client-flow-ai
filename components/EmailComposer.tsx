@@ -47,6 +47,8 @@ import {
   Clock,
 } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 interface EmailComposerProps {
   to?: string;
@@ -122,6 +124,12 @@ export default function EmailComposer({
   const { showAlert } = useAlert();
   const { user, session } = useAuth();
   const enhanceEmail = useEnhanceEmail();
+  const {
+    guardEmailSending,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
   const deleteDraft = useDeleteDraft();
   const { data: templates = [] } = useEmailTemplates();
   const { data: loadedDraft } = useEmailDraft(draftId);
@@ -545,6 +553,11 @@ export default function EmailComposer({
 
   const handleSend = async () => {
     if (!canSend || !user || !session?.access_token) return;
+
+    // Check subscription limits
+    if (!guardEmailSending()) {
+      return;
+    }
 
     // Validate attachments before sending
     if (attachments.length > 5) {
@@ -1641,6 +1654,13 @@ export default function EmailComposer({
           minimumDate={new Date()}
         />
       )}
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </View>
   );
 }

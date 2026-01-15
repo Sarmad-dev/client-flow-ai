@@ -28,6 +28,8 @@ import {
   Star,
   Plus,
   User,
+  Check,
+  Minus,
 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -72,6 +74,8 @@ export function ClientMapView({
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
+  const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
+  const [isCreatingClients, setIsCreatingClients] = useState(false);
   const isProgrammaticRegionUpdate = useRef(false);
 
   useEffect(() => {
@@ -188,6 +192,95 @@ export function ClientMapView({
     }
   };
 
+  const togglePlaceSelection = (placeId: string) => {
+    const newSelected = new Set(selectedPlaces);
+    if (newSelected.has(placeId)) {
+      newSelected.delete(placeId);
+    } else {
+      newSelected.add(placeId);
+    }
+    setSelectedPlaces(newSelected);
+  };
+
+  const clearSelection = () => {
+    setSelectedPlaces(new Set());
+  };
+
+  const createSelectedClients = async () => {
+    if (selectedPlaces.size === 0) {
+      Alert.alert(
+        'No Selection',
+        'Please select at least one business to add as clients.'
+      );
+      return;
+    }
+
+    setIsCreatingClients(true);
+    const selectedPlaceObjects = searchResults.filter((place) =>
+      selectedPlaces.has(place.place_id)
+    );
+
+    try {
+      const createdClients = [];
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const place of selectedPlaceObjects) {
+        try {
+          const client = await createClient.mutateAsync({
+            name: place.name,
+            company: place.name,
+            address: place.formatted_address,
+            selectedPlace: {
+              place_id: place.place_id,
+              formatted_address: place.formatted_address,
+              geometry: {
+                location: {
+                  lat: place.geometry.location.lat,
+                  lng: place.geometry.location.lng,
+                },
+              },
+              rating: place.rating,
+            },
+            website: place.website || '',
+            phone: place.phone_number || '',
+            businessType: place.types?.[0]?.replace(/_/g, ' ') || '',
+            source: 'map_search',
+            status: 'active',
+          } as any);
+
+          createdClients.push(client);
+          successCount++;
+          onClientCreated?.(client);
+        } catch (error) {
+          console.error(`Error creating client for ${place.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        Alert.alert(
+          'Batch Creation Complete',
+          `Successfully created ${successCount} client${
+            successCount > 1 ? 's' : ''
+          }${errorCount > 0 ? ` (${errorCount} failed)` : ''}`
+        );
+      } else {
+        Alert.alert('Error', 'Failed to create any clients. Please try again.');
+      }
+
+      // Clear selection and search results
+      setSelectedPlaces(new Set());
+      setSearchResults([]);
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Error in batch client creation:', error);
+      Alert.alert('Error', 'Failed to create clients. Please try again.');
+    } finally {
+      setIsCreatingClients(false);
+    }
+  };
+
   const clientsWithLocation = clients.filter((client) => client.location);
 
   const handleRegionChangeComplete = (newRegion: Region) => {
@@ -288,62 +381,129 @@ export function ClientMapView({
           <View
             style={[styles.searchResults, { backgroundColor: colors.surface }]}
           >
-            <ScrollView style={styles.resultsList} nestedScrollEnabled>
-              {searchResults.map((place) => (
-                <TouchableOpacity
-                  key={place.place_id}
-                  style={[
-                    styles.resultItem,
-                    { borderBottomColor: colors.border },
-                  ]}
-                  onPress={() => handlePlaceSelect(place)}
-                >
-                  <Building size={16} color={colors.primary} strokeWidth={2} />
-                  <View style={styles.resultInfo}>
-                    <Text style={[styles.resultName, { color: colors.text }]}>
-                      {place.name}
-                    </Text>
-                    <Text
+            <View style={styles.searchResultsHeader}>
+              <Text style={[styles.searchResultsTitle, { color: colors.text }]}>
+                Search Results ({searchResults.length})
+              </Text>
+              <View style={styles.selectionActions}>
+                {selectedPlaces.size > 0 && (
+                  <>
+                    <TouchableOpacity
                       style={[
-                        styles.resultAddress,
-                        { color: colors.textSecondary },
+                        styles.clearButton,
+                        { backgroundColor: colors.error },
                       ]}
+                      onPress={clearSelection}
                     >
-                      {place.formatted_address}
-                    </Text>
-                    {place.rating && (
-                      <View style={styles.resultRating}>
-                        <Star
-                          size={12}
-                          color={colors.warning}
-                          strokeWidth={2}
-                          fill={colors.warning}
-                        />
-                        <Text
-                          style={[
-                            styles.ratingText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {place.rating.toFixed(1)}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+                      <Minus size={16} color="#FFFFFF" strokeWidth={2} />
+                      <Text style={styles.clearButtonText}>Clear</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.createSelectedButton,
+                        { backgroundColor: colors.primary },
+                        isCreatingClients && styles.disabledButton,
+                      ]}
+                      onPress={createSelectedClients}
+                      disabled={isCreatingClients}
+                    >
+                      {isCreatingClients ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Plus size={16} color="#FFFFFF" strokeWidth={2} />
+                          <Text style={styles.createSelectedButtonText}>
+                            Add {selectedPlaces.size}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
+            <ScrollView style={styles.resultsList} nestedScrollEnabled>
+              {searchResults.map((place) => {
+                const isSelected = selectedPlaces.has(place.place_id);
+                return (
                   <TouchableOpacity
+                    key={place.place_id}
                     style={[
-                      styles.addClientButton,
-                      { backgroundColor: colors.primary },
+                      styles.resultItem,
+                      { borderBottomColor: colors.border },
+                      isSelected && { backgroundColor: colors.primaryLight },
                     ]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      createClientFromPlace(place);
-                    }}
+                    onPress={() => handlePlaceSelect(place)}
                   >
-                    <Plus size={16} color="#FFFFFF" strokeWidth={2} />
+                    <TouchableOpacity
+                      style={[
+                        styles.selectionCheckbox,
+                        { borderColor: colors.border },
+                        isSelected && {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        togglePlaceSelection(place.place_id);
+                      }}
+                    >
+                      {isSelected && (
+                        <Check size={16} color="#FFFFFF" strokeWidth={2} />
+                      )}
+                    </TouchableOpacity>
+                    <Building
+                      size={16}
+                      color={colors.primary}
+                      strokeWidth={2}
+                    />
+                    <View style={styles.resultInfo}>
+                      <Text style={[styles.resultName, { color: colors.text }]}>
+                        {place.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.resultAddress,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {place.formatted_address}
+                      </Text>
+                      {place.rating && (
+                        <View style={styles.resultRating}>
+                          <Star
+                            size={12}
+                            color={colors.warning}
+                            strokeWidth={2}
+                            fill={colors.warning}
+                          />
+                          <Text
+                            style={[
+                              styles.ratingText,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {place.rating.toFixed(1)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.addClientButton,
+                        { backgroundColor: colors.primary },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        createClientFromPlace(place);
+                      }}
+                    >
+                      <Plus size={16} color="#FFFFFF" strokeWidth={2} />
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
+                );
+              })}
             </ScrollView>
           </View>
         )}
@@ -486,6 +646,7 @@ export function ClientMapView({
           <Text style={[styles.statsText, { color: colors.text }]}>
             Showing {clientsWithLocation.length} of {clients.length} clients •{' '}
             {searchResults.length} search results
+            {selectedPlaces.size > 0 && ` • ${selectedPlaces.size} selected`}
           </Text>
         </View>
       </SafeAreaView>
@@ -535,23 +696,79 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginBottom: 16,
     borderRadius: 12,
-    maxHeight: 200,
+    maxHeight: 300,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
+  searchResultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  searchResultsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  selectionActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  clearButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  createSelectedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  createSelectedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
   resultsList: {
-    padding: 8,
+    maxHeight: 200,
   },
   resultItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
+    marginHorizontal: 8,
+    marginVertical: 2,
     borderRadius: 8,
     gap: 12,
     borderBottomWidth: 1,
+  },
+  selectionCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   resultInfo: {
     flex: 1,

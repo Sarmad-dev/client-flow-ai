@@ -11,22 +11,14 @@ export interface SubscriptionLimits {
   maxLeads: number;
   maxClients: number;
   maxProjects: number;
-  maxTasksPerClient: number;
-  maxEmailsPerClient: number;
-  maxEmailsPerLead: number;
+  maxTasksPerProjects: number;
+  maxEmails: number;
   maxTeamMembers: number;
-  maxAutomationRules: number;
   maxEmailTemplates: number;
   meetingsEnabled: boolean;
   analyticsEnabled: boolean;
   aiSuggestionsEnabled: boolean;
-  customBrandingEnabled: boolean;
-  prioritySupportEnabled: boolean;
-  apiAccessEnabled: boolean;
-  advancedReportsEnabled: boolean;
   bulkOperationsEnabled: boolean;
-  customFieldsEnabled: boolean;
-  webhooksEnabled: boolean;
 }
 
 export interface SubscriptionFeature {
@@ -71,9 +63,8 @@ export interface UserSubscription {
     clients: number;
     tasks: number;
     projects: number;
-    emailsSent: number;
+    emails: number;
     teamMembers: number;
-    automationRules: number;
     emailTemplates: number;
   };
   revenueCatInfo?: {
@@ -111,8 +102,8 @@ export interface SubscriptionUsageEvent {
     | 'lead_created'
     | 'client_created'
     | 'task_created'
-    | 'email_sent'
-    | 'storage_used';
+    | 'project_created'
+    | 'email_sent';
   timestamp: Date;
   metadata?: Record<string, any>;
 }
@@ -122,6 +113,7 @@ export interface SubscriptionAnalytics {
   usagePercentage: {
     leads: number;
     clients: number;
+    projects: number;
     tasks: number;
     emails: number;
   };

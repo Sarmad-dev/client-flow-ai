@@ -42,6 +42,8 @@ export default {
     jsEngine: 'hermes',
     ios: {
       supportsTablet: true,
+      googleServicesFile: './GoogleService-Info.plist',
+      bundleIdentifier: 'com.sarmadkhan2694.nexasuit',
     },
     web: {
       bundler: 'metro',
@@ -78,6 +80,7 @@ export default {
     owner: 'sarmadjkl',
     android: {
       package: 'com.sarmadkhan2694.nexasuit',
+      googleServicesFile: './google-services.json',
       config: {
         googleMaps: {
           apiKey: process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY,

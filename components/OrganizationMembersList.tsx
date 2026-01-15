@@ -28,6 +28,8 @@ import {
   useUpdateMemberRole,
   useRemoveMember,
 } from '@/hooks/useOrganizationMembers';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import type { OrganizationMember } from '@/types/organization';
 
 interface OrganizationMembersListProps {
@@ -54,9 +56,21 @@ export default function OrganizationMembersList({
   const inviteMember = useInviteMember();
   const updateMemberRole = useUpdateMemberRole();
   const removeMember = useRemoveMember();
+  const {
+    guardAddTeamMember,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
 
   const handleInviteMember = async () => {
     if (!orgId || !inviteEmail.trim()) return;
+
+    // Check subscription limits
+    const canInvite = await guardAddTeamMember(orgId);
+    if (!canInvite) {
+      return;
+    }
 
     try {
       await inviteMember.mutateAsync({
@@ -600,6 +614,13 @@ export default function OrganizationMembersList({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </View>
   );
 }

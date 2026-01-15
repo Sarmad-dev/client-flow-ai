@@ -23,6 +23,8 @@ import {
 } from '@/hooks/useEmailSequences';
 import { useSequenceEnrollmentStats } from '@/hooks/useSequenceEnrollments';
 import { useAlert } from '@/contexts/CustomAlertContext';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 import {
   Plus,
   Edit,
@@ -71,8 +73,19 @@ export default function EmailSequencesManager({
   const updateSequence = useUpdateEmailSequence();
   const deleteSequence = useDeleteEmailSequence();
   const validateSequence = useValidateSequence();
+  const {
+    guardEmailSending,
+    showSubscriptionModal,
+    setShowSubscriptionModal,
+    modalFeatureName,
+  } = useSubscriptionGuard();
 
   const handleCreateNew = () => {
+    // Check email sending permission (sequences require email capability)
+    if (!guardEmailSending()) {
+      return;
+    }
+
     setEditingSequence(null);
     setSequenceName('');
     setSequenceDescription('');
@@ -369,6 +382,13 @@ export default function EmailSequencesManager({
           />
         </Modal>
       )}
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        featureName={modalFeatureName}
+      />
     </View>
   );
 }

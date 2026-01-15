@@ -46,14 +46,13 @@ interface SubscriptionContextType {
   // Feature Access Checks
   canCreateLead: () => boolean;
   canCreateClient: () => boolean;
-  canCreateTask: (clientId?: string) => boolean;
+  canCreateTask: (projectId: string) => Promise<boolean>;
   canCreateProject: () => boolean;
-  canSendEmail: (type: 'client' | 'lead', id: string) => boolean;
+  canAddTeamMember: (organizationId: string) => Promise<boolean>;
+  canSendEmail: () => boolean;
   canAccessMeetings: () => boolean;
   canAccessAnalytics: () => boolean;
   canAccessAI: () => boolean;
-  canAccessAutomation: () => boolean;
-  canAccessAdvancedReports: () => boolean;
   canPerformBulkOperations: () => boolean;
 
   // Usage Management
@@ -87,10 +86,9 @@ const DEFAULT_SUBSCRIPTION: UserSubscription = {
     leads: 0,
     clients: 0,
     tasks: 0,
-    emailsSent: 0,
+    emails: 0,
     projects: 0,
     teamMembers: 1,
-    automationRules: 0,
     emailTemplates: 0,
   },
 };
@@ -311,7 +309,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
       tasksResult,
       emailsResult,
       templatesResult,
-      rulesResult,
       projectsResult,
     ] = await Promise.all([
       supabase
@@ -349,11 +346,9 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
       clients: clientsResult.count || 0,
       tasks: tasksResult.count || 0,
       projects: projectsResult.count || 0,
-      emailsSent: emailsResult.count || 0,
+      emails: emailsResult.count || 0,
       teamMembers: 1, // TODO: Implement team members count
-      automationRules: rulesResult.count || 0,
       emailTemplates: templatesResult.count || 0,
-      storageUsedMB: 0, // TODO: Implement storage calculation
     };
   };
 
@@ -524,12 +519,28 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   };
 
-  const canCreateTask = (clientId?: string): boolean => {
+  const canCreateTask = async (projectId: string): Promise<boolean> => {
+    if (!user?.id) return false;
+
     const limits = getCurrentLimits();
-    return isWithinLimit(
-      userSubscription.currentUsage.tasks,
-      limits.maxTasksPerClient
-    );
+
+    try {
+      // Get the count of tasks for this specific project
+      const { count, error } = await supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId);
+
+      if (error) {
+        console.error('Failed to check task count for project:', error);
+        return false;
+      }
+
+      return isWithinLimit(count || 0, limits.maxTasksPerProjects);
+    } catch (error) {
+      console.error('Failed to check task limit:', error);
+      return false;
+    }
   };
 
   const canCreateProject = (): boolean => {
@@ -540,32 +551,44 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   };
 
-  const canSendEmail = (type: 'client' | 'lead', id: string): boolean => {
+  const canSendEmail = (): boolean => {
     const limits = getCurrentLimits();
-    const maxEmails =
-      type === 'client' ? limits.maxEmailsPerClient : limits.maxEmailsPerLead;
-    return isWithinLimit(userSubscription.currentUsage.emailsSent, maxEmails);
+    const maxEmails = limits.maxEmails;
+    return isWithinLimit(userSubscription.currentUsage.emails, maxEmails);
   };
 
   const canAccessMeetings = (): boolean => getCurrentLimits().meetingsEnabled;
   const canAccessAnalytics = (): boolean => getCurrentLimits().analyticsEnabled;
   const canAccessAI = (): boolean => getCurrentLimits().aiSuggestionsEnabled;
-  const canAccessAutomation = (): boolean => {
+
+  const canAddTeamMember = async (organizationId: string): Promise<boolean> => {
+    if (!user?.id) return false;
+
     const limits = getCurrentLimits();
-    return isWithinLimit(
-      userSubscription.currentUsage.automationRules,
-      limits.maxAutomationRules
-    );
+
+    try {
+      // Get the count of active members for this specific organization
+      const { count, error } = await supabase
+        .from('organization_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
+        .eq('status', 'active');
+
+      if (error) {
+        console.error(
+          'Failed to check team member count for organization:',
+          error
+        );
+        return false;
+      }
+
+      return isWithinLimit(count || 0, limits.maxTeamMembers);
+    } catch (error) {
+      console.error('Failed to check team member limit:', error);
+      return false;
+    }
   };
-  const canAddTeamMember = (): boolean => {
-    const limits = getCurrentLimits();
-    return isWithinLimit(
-      userSubscription.currentUsage.teamMembers,
-      limits.maxTeamMembers
-    );
-  };
-  const canAccessAdvancedReports = (): boolean =>
-    getCurrentLimits().advancedReportsEnabled;
+
   const canPerformBulkOperations = (): boolean =>
     getCurrentLimits().bulkOperationsEnabled;
 
@@ -673,14 +696,13 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
     canAccessMeetings,
     canAccessAnalytics,
     canAccessAI,
-    canAccessAutomation,
-    canAccessAdvancedReports,
     canPerformBulkOperations,
     incrementUsage,
     decrementUsage,
     syncUsageWithDatabase,
     trackUsageEvent,
     getFeatureLimit,
+    canAddTeamMember,
     getFeatureLimitMessage: getFeatureLimitMessageWrapper,
     isInTrial,
     getTrialDaysLeft,

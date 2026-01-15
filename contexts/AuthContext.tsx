@@ -166,40 +166,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Ensure any previous auth session is completed
       WebBrowser.maybeCompleteAuthSession();
 
-      await GoogleSignin.hasPlayServices();
+      // Check if Google Play Services are available
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+
+      // Sign out any existing user first to ensure clean state
+      await GoogleSignin.signOut();
+
       const response = await GoogleSignin.signIn();
 
-      console.log('ID Token: ', response.data?.idToken);
+      console.log('Google Sign-In Response:', response);
+
       if (isSuccessResponse(response)) {
+        const idToken = response.data?.idToken;
+
+        if (!idToken) {
+          console.error('No ID token received from Google');
+          return { error: new Error('No ID token received from Google') };
+        }
+
+        console.log('ID Token received, signing in with Supabase...');
+
         const { data, error } = await supabase.auth.signInWithIdToken({
           provider: 'google',
-          token: response.data.idToken!,
+          token: idToken,
         });
 
         if (error) {
-          console.error('Google sign-in error:', error);
+          console.error('Supabase Google sign-in error:', error);
           return { error };
         }
 
         if (data?.session) {
           console.log('Successfully signed in with Google');
-          // The auth state change listener will handle the redirect
           return { error: null };
+        } else {
+          console.error('No session received from Supabase');
+          return { error: new Error('No session received from Supabase') };
         }
+      } else {
+        console.error('Google sign-in was not successful:', response);
+        return { error: new Error('Google sign-in was cancelled or failed') };
       }
     } catch (error: any) {
       console.error('Google sign-in error:', error);
-      if (error.code === statusCodes.IN_PROGRESS) {
-        // operation (e.g. sign in) is in progress already
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        // play services not available or outdated
-      } else {
-        // some other error happened
-      }
-      return { error } as { error: any };
-    }
 
-    return { error: new Error('Sign-in failed') };
+      // Handle specific error codes
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        return { error: new Error('Sign-in was cancelled') };
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        return { error: new Error('Sign-in is already in progress') };
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        return { error: new Error('Google Play Services not available') };
+      } else {
+        return { error: error };
+      }
+    }
   };
 
   const refreshSession = async () => {
